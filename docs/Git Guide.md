@@ -10,4 +10,4 @@
 
 `git checkout <branch>`: loads the selected branch into the working directory
 
-![[Git-Commands-Diagram.jpg]]
+![](Git-Commands-Diagram.jpg)
