@@ -7,6 +7,13 @@
 
 
 # Creating a Branch
+Always work on new features on new branches
+1) Be on the branch from which you want to fork
+	1) `git branch` to see all branches
+	2) `git checkout <branch-name>`
+2) `git branch ` followed by a name for the new branch
+3) `git checkout <branch-name>`
+Steps 2 and 3 can be replaced by `git checkout -b ` followed by the new branch name
 
 
 
