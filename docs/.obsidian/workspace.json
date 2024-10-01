@@ -28,11 +28,13 @@
             "id": "b8f87a6240033b32",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "kanban",
               "state": {
-                "file": "Git Guide.md",
-                "mode": "source",
-                "source": false
+                "file": "Rationale Assignment.md",
+                "kanbanViewState": {
+                  "kanban-plugin": "board",
+                  "list-collapse": []
+                }
               }
             }
           }
@@ -103,7 +105,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Git Guide.md",
+                "file": "Rationale Assignment.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -120,7 +122,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Git Guide.md",
+                "file": "Rationale Assignment.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -143,7 +145,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Git Guide.md"
+                "file": "Rationale Assignment.md"
               }
             }
           }
@@ -167,8 +169,8 @@
   },
   "active": "b8f87a6240033b32",
   "lastOpenFiles": [
-    "Git-Commands-Diagram.jpg",
     "Git Guide.md",
+    "Git-Commands-Diagram.jpg",
     "Kanban.md",
     "Rationale Assignment @{2024-09-17}.md"
   ]
