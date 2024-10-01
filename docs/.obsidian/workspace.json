@@ -11,30 +11,23 @@
             "id": "65fc640c2cfeefc8",
             "type": "leaf",
             "state": {
-              "type": "kanban",
+              "type": "markdown",
               "state": {
-                "file": "Kanban.md",
-                "kanbanViewState": {
-                  "kanban-plugin": "board",
-                  "list-collapse": [
-                    false,
-                    false
-                  ]
-                }
+                "file": "Git Guide.md",
+                "mode": "source",
+                "source": false
               }
             }
           },
           {
-            "id": "b8f87a6240033b32",
+            "id": "6c1c300e49462e89",
             "type": "leaf",
             "state": {
-              "type": "kanban",
+              "type": "markdown",
               "state": {
-                "file": "Rationale Assignment.md",
-                "kanbanViewState": {
-                  "kanban-plugin": "board",
-                  "list-collapse": []
-                }
+                "file": "Install PySide6.md",
+                "mode": "source",
+                "source": false
               }
             }
           }
@@ -105,7 +98,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Rationale Assignment.md",
+                "file": "Install PySide6.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -122,7 +115,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Rationale Assignment.md",
+                "file": "Install PySide6.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -145,7 +138,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Rationale Assignment.md"
+                "file": "Install PySide6.md"
               }
             }
           }
@@ -167,11 +160,15 @@
       "obsidian-kanban:Create new board": false
     }
   },
-  "active": "b8f87a6240033b32",
+  "active": "6c1c300e49462e89",
   "lastOpenFiles": [
     "Git Guide.md",
-    "Git-Commands-Diagram.jpg",
+    "Install PySide6.md",
+    "Rationale Assignment.md",
+    "Assignments/Group Assignment 1.md",
+    "Assignments",
     "Kanban.md",
+    "Git-Commands-Diagram.jpg",
     "Rationale Assignment @{2024-09-17}.md"
   ]
 }

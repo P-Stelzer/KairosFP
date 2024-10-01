@@ -1,3 +1,14 @@
+# Setup Git Repo
+1) Navigate to the location in your computer where you want the local repository to be stored
+2) Open a terminal window at that location
+3) In the GitHub repo, click the green Clone button above the file explorer and to the right and copy the HTTPS link
+4) In the terminal, type `git clone ` followed by the link you copied
+5) You might be asked to login
+
+
+# Creating a Branch
+
+
 
 `git status`: shows info like staged and unstaged changes and status of your repo from the remote
 `git add <path>`: adds the contents of the path to the staging area
