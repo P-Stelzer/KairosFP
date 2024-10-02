@@ -160,7 +160,7 @@ class EventFetcher:
 
         if len(self.begin) <= 1:
             self.begin.append(
-                "NATURAL JOIN (SELECT event_id as id, tag_id as tag1 FROM tagged_event)"
+                "NATURAL JOIN (SELECT event_id as id, tag_id as tag0 FROM tagged_event)"
             )
 
         preds = " OR ".join(("tag0 = ?" for _ in tag_ids))
