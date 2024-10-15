@@ -2,3 +2,4 @@ docs/.obsidian/
 docs/.trash/
 src/kfp.db
 env
+__pycache__
