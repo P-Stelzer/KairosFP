@@ -27,6 +27,8 @@ _conn.executescript(
         id INTEGER PRIMARY KEY ASC,
         name STRING,
         description STRING
+        min_balance INTEGER
+        max_balance INTEGER
     );
     CREATE TABLE IF NOT EXISTS event_accounts (
         event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
@@ -79,7 +81,7 @@ def insert_event(
 
     if len(accounts) > 0:
         _conn.execute(
-            "INSERT INTO event_accounts VALUES (? ? ?)",
+            "INSERT INTO event_accounts VALUES (?,?,?)",
             [(id, account_id, is_credit) for account_id, is_credit in accounts],
         )
 
@@ -101,13 +103,35 @@ def alter_events(*events: Event) -> None:
 
 def add_tags_to_event(event_id: int, *tag_ids: int) -> None:
     _conn.executemany(
-        "INSERT INTO event_tags VALUES (? ?)",
+        "INSERT INTO event_tags VALUES (?,?)",
         [(event_id, tag_id) for tag_id in tag_ids],
     )
 
 
 def remove_tags_from_event(event_id: int, *tag_ids: int) -> None:
-    _conn.executemany()
+    _conn.executemany(
+        "DELETE FROM event_tags WHERE event_id = ? AND tag_id = ?",
+        [(event_id, tag_id) for tag_id in tag_ids],
+    )
+
+
+def add_accounts_to_event(
+    event_id: int, accounts: list[tuple[int, bool]]
+) -> None:
+    _conn.executemany(
+        "INSERT INTO event_accounts VALUES (?,?)",
+        [
+            (event_id, account_id, is_credit)
+            for account_id, is_credit in accounts
+        ],
+    )
+
+
+def remove_accounts_from_event(event_id: int, *account_ids: int) -> None:
+    _conn.executemany(
+        "DELETE FROM event_accounts WHERE event_id = ? AND account_id = ?",
+        [(event_id, account_id) for account_id in account_ids],
+    )
 
 
 def delete_events(*events: Event) -> None:
@@ -122,6 +146,8 @@ class EventFetcher:
         self.begin: list[str] = list()
         self.predicates: list[str] = list()
         self.begin.append("".join(("SELECT ", columns, " FROM event")))
+        self.tag_joins = 0
+        self.account_joins = 0
 
     def exec(self) -> list[Any]:
         command = " ".join(self.begin) + (
@@ -187,6 +213,8 @@ class EventFetcher:
                 "NATURAL JOIN (SELECT event_id as id, tag_id as tag0 FROM event_tags)"
             )
 
+        self.tag_joins += 1
+
         preds = " OR ".join(("tag0 = ?" for _ in tag_ids))
         self.predicates.append(preds.join(("(", ")")))
 
@@ -199,17 +227,56 @@ class EventFetcher:
         if len(tag_ids) < 1:
             return self
 
-        tag_offset = len(self.begin) - 1
-        for i in range(len(tag_ids) - tag_offset):
+        for i in range(len(tag_ids) - self.tag_joins):
             self.begin.append(
-                f"NATURAL JOIN (SELECT event_id as id, tag_id as tag{i+tag_offset} FROM event_tags)"
+                f"NATURAL JOIN (SELECT event_id as id, tag_id as tag{i+self.tag_joins} FROM event_tags)"
             )
+
+        self.tag_joins += len(tag_ids) - self.tag_joins
 
         preds = " AND ".join((f"tag{i} = ?" for i in range(len(tag_ids))))
         self.predicates.append(preds)
 
         for tag_id in tag_ids:
             self.params.append(tag_id)
+
+        return self
+
+    def any_accounts(self, *account_ids: int) -> Self:
+        if len(account_ids) < 1:
+            return self
+
+        if len(self.begin) <= 1:
+            self.begin.append(
+                "NATURAL JOIN (SELECT event_id as id, account_id as account0 FROM event_accounts)"
+            )
+
+        self.account_joins += 1
+
+        preds = " OR ".join(("account0 = ?" for _ in account_ids))
+        self.predicates.append(preds.join(("(", ")")))
+
+        for account_id in account_ids:
+            self.params.append(account_id)
+
+        return self
+
+    def all_accounts(self, *account_ids: int) -> Self:
+        if len(account_ids) < 1:
+            return self
+
+        for i in range(len(account_ids) - self.account_joins):
+            self.begin.append(
+                f"NATURAL JOIN (SELECT event_id as id, account_id as account{i+self.account_joins} FROM event_accounts)"
+            )
+
+        self.account_joins += len(account_ids) - self.account_joins
+
+        preds = " AND ".join((f"tag{i} = ?" for i in range(len(account_ids))))
+        self.predicates.append(preds)
+
+        for account_id in account_ids:
+            self.params.append(account_id)
 
         return self
 
@@ -252,15 +319,30 @@ def delete_tags(*tags: Tag) -> None:
 
 
 class Account:
-    def __init__(self, id: int, name: str, description: str) -> None:
+    def __init__(
+        self,
+        id: int,
+        name: str,
+        description: str,
+        min_balance: int | None,
+        max_balance: int | None,
+    ) -> None:
         self.id = id
         self.name = name
         self.description = description
+        self.min_balance = min_balance
+        self.max_balance = max_balance
 
 
-def new_account(name: str, description: str) -> Account:
+def new_account(
+    name: str,
+    description: str,
+    min_balance: int | None,
+    max_balance: int | None,
+) -> Account:
     cur = _conn.execute(
-        "INSERT INTO account VALUES (?, ?, ?)", (None, name, description)
+        "INSERT INTO account VALUES (?, ?, ?, ?, ?)",
+        (None, name, description, min_balance, max_balance),
     )
 
     if cur is None:
@@ -270,7 +352,7 @@ def new_account(name: str, description: str) -> Account:
     if id is None:
         raise RuntimeError("Could not obtain id for new account")
 
-    return Account(id, name, description)
+    return Account(id, name, description, min_balance, max_balance)
 
 
 def alter_accounts(*accounts: Account) -> None:
