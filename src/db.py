@@ -18,7 +18,7 @@ _conn.executescript(
         name STRING,
         description STRING
     );
-    CREATE TABLE IF NOT EXISTS tagged_event (
+    CREATE TABLE IF NOT EXISTS event_tags (
         event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
         tag_id INTEGER REFERENCES tag(id) ON DELETE CASCADE,
         UNIQUE (event_id, tag_id)
@@ -27,6 +27,12 @@ _conn.executescript(
         id INTEGER PRIMARY KEY ASC,
         name STRING,
         description STRING
+    );
+    CREATE TABLE IF NOT EXISTS event_accounts (
+        event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
+        account_id INTEGER REFERENCES account(id) ON DELETE CASCADE,
+        is_credit INTEGER,
+        UNIQUE (event_id, account_id)
     );
     COMMIT;
     
@@ -41,16 +47,14 @@ class Event:
         date: int,
         amount: int,
         name: str,
-        debit: int | None,
-        credit: int | None,
+        accounts: list[tuple[int, bool]],
         *tag_ids: int,
     ) -> None:
         self.id = id
         self.date = date
         self.amount = amount
         self.name = name
-        self.debit = debit
-        self.credit = credit
+        self.accounts = accounts
         self.tag_ids = tag_ids
 
 
@@ -58,42 +62,62 @@ def insert_event(
     date: int,
     amount: int,
     name: str,
-    debit: int | None,
-    credit: int | None,
+    accounts: list[tuple[int, bool]],
     *tag_ids: int,
 ) -> Event:
     cur = _conn.execute(
         "INSERT INTO event VALUES (?,?,?,?,?,?)",
-        (None, date, amount, name, debit, credit),
+        (None, date, amount, name),
     )
     if cur is None:
         raise RuntimeError("Event insert Error: cursor is None")
 
     id = cur.lastrowid
 
+    if id is None:
+        raise RuntimeError("Could not obtain id for new event")
+
+    if len(accounts) > 0:
+        _conn.execute(
+            "INSERT INTO event_accounts VALUES (? ? ?)",
+            [(id, account_id, is_credit) for account_id, is_credit in accounts],
+        )
+
     if len(tag_ids) > 0:
         _conn.execute(
-            "INSERT INTO tagged_event VALUES (?,?)",
+            "INSERT INTO event_tags VALUES (?,?)",
             [(id, tag_id) for tag_id in tag_ids],
         )
 
-    return Event(id, date, amount, name, debit, credit, *tag_ids)
+    return Event(id, date, amount, name, accounts, *tag_ids)
 
 
 def alter_events(*events: Event) -> None:
     _conn.executemany(
-        "UPDATE event SET date = ?, amount = ?, name = ?, debit = ?, credit = ? WHERE id = ?",
-        [(e.date, e.amount, e.name, e.debit, e.credit, e.id) for e in events],
+        "UPDATE event SET date = ?, amount = ?, name = ? WHERE id = ?",
+        [(e.date, e.amount, e.name, e.id) for e in events],
     )
 
 
+def add_tags_to_event(event_id: int, *tag_ids: int) -> None:
+    _conn.executemany(
+        "INSERT INTO event_tags VALUES (? ?)",
+        [(event_id, tag_id) for tag_id in tag_ids],
+    )
+
+
+def remove_tags_from_event(event_id: int, *tag_ids: int) -> None:
+    _conn.executemany()
+
+
 def delete_events(*events: Event) -> None:
-    _conn.executemany("DELETE FROM event WHERE id = ?", [(e.id,) for e in events])
+    _conn.executemany(
+        "DELETE FROM event WHERE id = ?", [(e.id,) for e in events]
+    )
 
 
 class EventFetcher:
-
-    def __init__(self, columns: str = "id, date, amount, name, debit, credit") -> None:
+    def __init__(self, columns: str = "id, date, amount, name") -> None:
         self.params: list[int | str | None] = list()
         self.begin: list[str] = list()
         self.predicates: list[str] = list()
@@ -138,21 +162,21 @@ class EventFetcher:
         self.params.append(name.join(("%", "%")))
         return self
 
-    def debited(self, account_id: int | None) -> Self:
-        if account_id is None:
-            self.predicates.append("debit ISNULL")
-        else:
-            self.predicates.append("debit = ?")
-            self.params.append(account_id)
-        return self
+    # def debited(self, account_id: int | None) -> Self:
+    #     if account_id is None:
+    #         self.predicates.append("debit ISNULL")
+    #     else:
+    #         self.predicates.append("debit = ?")
+    #         self.params.append(account_id)
+    #     return self
 
-    def credited(self, account_id: int | None) -> Self:
-        if account_id is None:
-            self.predicates.append("credit ISNULL")
-        else:
-            self.predicates.append("credit = ?")
-            self.params.append(account_id)
-        return self
+    # def credited(self, account_id: int | None) -> Self:
+    #     if account_id is None:
+    #         self.predicates.append("credit ISNULL")
+    #     else:
+    #         self.predicates.append("credit = ?")
+    #         self.params.append(account_id)
+    #     return self
 
     def any_tags(self, *tag_ids: int) -> Self:
         if len(tag_ids) < 1:
@@ -160,7 +184,7 @@ class EventFetcher:
 
         if len(self.begin) <= 1:
             self.begin.append(
-                "NATURAL JOIN (SELECT event_id as id, tag_id as tag0 FROM tagged_event)"
+                "NATURAL JOIN (SELECT event_id as id, tag_id as tag0 FROM event_tags)"
             )
 
         preds = " OR ".join(("tag0 = ?" for _ in tag_ids))
@@ -178,7 +202,7 @@ class EventFetcher:
         tag_offset = len(self.begin) - 1
         for i in range(len(tag_ids) - tag_offset):
             self.begin.append(
-                f"NATURAL JOIN (SELECT event_id as id, tag_id as tag{i+tag_offset} FROM tagged_event)"
+                f"NATURAL JOIN (SELECT event_id as id, tag_id as tag{i+tag_offset} FROM event_tags)"
             )
 
         preds = " AND ".join((f"tag{i} = ?" for i in range(len(tag_ids))))
@@ -202,12 +226,18 @@ class Tag:
 
 
 def define_tag(name: str, description: str) -> Tag:
-    cur = _conn.execute("INSERT INTO tag VALUES (?, ?, ?)", (None, name, description))
+    cur = _conn.execute(
+        "INSERT INTO tag VALUES (?, ?, ?)", (None, name, description)
+    )
 
     if cur is None:
         raise RuntimeError("Tag insert Error: cursor is None")
 
-    return Tag(cur.lastrowid, name, description)
+    id = cur.lastrowid
+    if id is None:
+        raise RuntimeError("Could not obtain id for new tag")
+
+    return Tag(id, name, description)
 
 
 def alter_tags(*tags: Tag) -> None:
@@ -236,7 +266,11 @@ def new_account(name: str, description: str) -> Account:
     if cur is None:
         raise RuntimeError("Account insert Error: cursor is None")
 
-    return Account(cur.lastrowid, name, description)
+    id = cur.lastrowid
+    if id is None:
+        raise RuntimeError("Could not obtain id for new account")
+
+    return Account(id, name, description)
 
 
 def alter_accounts(*accounts: Account) -> None:
@@ -247,7 +281,9 @@ def alter_accounts(*accounts: Account) -> None:
 
 
 def delete_accounts(*accounts: Account) -> None:
-    _conn.executemany("DELETE FROM account WHERE id = ?", [(a.id,) for a in accounts])
+    _conn.executemany(
+        "DELETE FROM account WHERE id = ?", [(a.id,) for a in accounts]
+    )
 
 
 def main() -> None:
