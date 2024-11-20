@@ -8,4 +8,7 @@ if __name__ == "__main__":
     window = ui.InfiniteScrollArea()
     window.show()
 
+    editor = ui.EventEditor()
+    editor.show()
+
     app.exec()
