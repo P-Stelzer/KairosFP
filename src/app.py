@@ -35,8 +35,8 @@ class CalendarWindow(QMainWindow):
         region = QRegion(rect)
         return region
     
+    # Set custom styles for the calendar
     def styleCalendar(self):
-        # Set custom styles for the calendar
         self.setStyleSheet("""
             QCalendarWidget {
                 background-color: #FFFFFF;
