@@ -2,44 +2,65 @@ import sqlite3
 from typing import Any, Self
 
 _conn = sqlite3.connect("kfp.db")
-_conn.executescript(
-    """
-    BEGIN;
-    CREATE TABLE IF NOT EXISTS event (
-        id INTEGER PRIMARY KEY ASC,
-        date INTEGER,
-        amount INTEGER,
-        name STRING,
-        debit INTEGER REFERENCES account(id) ON DELETE SET NULL,
-        credit INTEGER REFERENCES account(id) ON DELETE SET NULL
-    );
-    CREATE TABLE IF NOT EXISTS tag (
-        id INTEGER PRIMARY KEY ASC,
-        name STRING,
-        description STRING
-    );
-    CREATE TABLE IF NOT EXISTS event_tags (
-        event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
-        tag_id INTEGER REFERENCES tag(id) ON DELETE CASCADE,
-        UNIQUE (event_id, tag_id)
-    );
-    CREATE TABLE IF NOT EXISTS account (
-        id INTEGER PRIMARY KEY ASC,
-        name STRING,
-        description STRING
-        min_balance INTEGER
-        max_balance INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS event_accounts (
-        event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
-        account_id INTEGER REFERENCES account(id) ON DELETE CASCADE,
-        is_credit INTEGER,
-        UNIQUE (event_id, account_id)
-    );
-    COMMIT;
-    
-    """
-)
+
+
+def __initialize_schema__():
+    _conn.executescript(
+        """
+        BEGIN;
+        CREATE TABLE IF NOT EXISTS event (
+            id INTEGER PRIMARY KEY ASC,
+            date INTEGER,
+            amount INTEGER,
+            name STRING,
+            debit INTEGER REFERENCES account(id) ON DELETE SET NULL,
+            credit INTEGER REFERENCES account(id) ON DELETE SET NULL
+        );
+        CREATE TABLE IF NOT EXISTS tag (
+            id INTEGER PRIMARY KEY ASC,
+            name STRING,
+            description STRING
+        );
+        CREATE TABLE IF NOT EXISTS event_tags (
+            event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
+            tag_id INTEGER REFERENCES tag(id) ON DELETE CASCADE,
+            UNIQUE (event_id, tag_id)
+        );
+        CREATE TABLE IF NOT EXISTS account (
+            id INTEGER PRIMARY KEY ASC,
+            name STRING,
+            description STRING,
+            min_balance INTEGER,
+            max_balance INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS event_accounts (
+            event_id INTEGER REFERENCES event(id) ON DELETE CASCADE,
+            account_id INTEGER REFERENCES account(id) ON DELETE CASCADE,
+            is_credit INTEGER,
+            UNIQUE (event_id, account_id)
+        );
+        COMMIT;
+        """
+    )
+
+
+def __reset_schema__():
+    cur = _conn.cursor()
+    print(
+        cur.executescript(
+            """
+        BEGIN;
+        EXPLAIN QUERY PLAN DROP TABLE event;
+        EXPLAIN QUERY PLAN DROP TABLE tag;
+        EXPLAIN QUERY PLAN DROP TABLE event_tags;
+        EXPLAIN QUERY PLAN DROP TABLE account;
+        EXPLAIN QUERY PLAN DROP TABLE event_accounts;
+        COMMIT;
+        """
+        )
+    )
+    _conn.commit()
+    # __initialize_schema__()
 
 
 class Event:
@@ -188,22 +209,6 @@ class EventFetcher:
         self.params.append(name.join(("%", "%")))
         return self
 
-    # def debited(self, account_id: int | None) -> Self:
-    #     if account_id is None:
-    #         self.predicates.append("debit ISNULL")
-    #     else:
-    #         self.predicates.append("debit = ?")
-    #         self.params.append(account_id)
-    #     return self
-
-    # def credited(self, account_id: int | None) -> Self:
-    #     if account_id is None:
-    #         self.predicates.append("credit ISNULL")
-    #     else:
-    #         self.predicates.append("credit = ?")
-    #         self.params.append(account_id)
-    #     return self
-
     def any_tags(self, *tag_ids: int) -> Self:
         if len(tag_ids) < 1:
             return self
@@ -292,7 +297,7 @@ class Tag:
         self.description = description
 
 
-def define_tag(name: str, description: str) -> Tag:
+def register_tag(name: str, description: str) -> Tag:
     cur = _conn.execute(
         "INSERT INTO tag VALUES (?, ?, ?)", (None, name, description)
     )
@@ -318,6 +323,15 @@ def delete_tags(*tags: Tag) -> None:
     _conn.executemany("DELETE FROM tag WHERE id = ?", [(t.id,) for t in tags])
 
 
+def fetch_all_registered_tags() -> list[Tag]:
+    cur = _conn.execute("SELECT * FROM tag")
+    result = cur.fetchall()
+    tags: list[Tag] = list()
+    for id, name, description in result:
+        tags.append(Tag(id, name, description))
+    return tags
+
+
 class Account:
     def __init__(
         self,
@@ -334,7 +348,7 @@ class Account:
         self.max_balance = max_balance
 
 
-def new_account(
+def register_account(
     name: str,
     description: str,
     min_balance: int | None,
@@ -368,27 +382,40 @@ def delete_accounts(*accounts: Account) -> None:
     )
 
 
+def fetch_all_registered_accounts() -> list[Account]:
+    cur = _conn.execute("SELECT * FROM account")
+    result = cur.fetchall()
+    accounts: list[Account] = list()
+    for id, name, description, min_balance, max_balance in result:
+        accounts.append(
+            Account(id, name, description, min_balance, max_balance)
+        )
+    return accounts
+
+
 def main() -> None:
-    ev1 = insert_event(0, 1, "potat", None, None)
-    ev2 = insert_event(0, 10, "potato", None, None)
-    ev3 = insert_event(0, 100, "bigpotatoes", None, None)
+    __reset_schema__()
+    register_tag("Tag1", "Desc1")
+    register_tag("Tag2", "Desc2")
+    register_tag("Tag3", "Desc3")
 
-    events = fetch_events().exec()
-    for e in events:
-        print(e)
+    for tag in fetch_all_registered_tags():
+        print(tag.id, tag.name, tag.description)
 
-    ev1.date = 1
-    ev2.date = 2
+    register_account("Account1", "Desc1", 100, 200)
+    register_account("Account2", "Desc2", None, 200)
+    register_account("Account3", "Desc3", 100, None)
 
-    ev = [ev1, ev2]
+    for account in fetch_all_registered_accounts():
+        print(
+            account.id,
+            account.name,
+            account.description,
+            account.min_balance,
+            account.max_balance,
+        )
 
-    alter_events(*ev)
-    delete_events(ev3)
 
-    events = fetch_events().exec()
-    for e in events:
-        print(e)
-
-
+__initialize_schema__()
 if __name__ == "__main__":
     main()
