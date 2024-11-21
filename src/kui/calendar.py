@@ -20,38 +20,104 @@ UNIT_WEEK = timedelta(weeks=1)
 UNIX_EPOCH = Date(1970, 1, 1)
 
 
+def date_to_serial(date: Date) -> int:
+    return (date - UNIX_EPOCH).days
+
+
+def serial_to_date(serial: int) -> Date:
+    return UNIX_EPOCH + timedelta(days=serial)
+
+
 LOADED_DAYS: dict[int, "Day"] = dict()
 LOADED_EVENTS: list[Event] = list()
+
+
+def get_loaded_events(date: Date) -> list[Event]:
+    serial = date_to_serial(date)
+    min = 0
+    max = len(LOADED_EVENTS) - 1
+    mid: int
+    while min <= max:
+        mid = min + (max - min) // 2
+        if LOADED_EVENTS[mid].date == serial:
+            break
+        elif LOADED_EVENTS[mid].date > serial:
+            max = mid - 1
+        else:
+            min = mid + 1
+
+    while mid - 1 >= 0 and LOADED_EVENTS[mid - 1].date == serial:
+        mid -= 1
+
+    events: list[Event] = list()
+    while mid < len(LOADED_EVENTS) and LOADED_EVENTS[mid].date == serial:
+        events.append(LOADED_EVENTS[mid])
+        mid += 1
+
+    return events
+
+
+def insert_new_event(event: Event) -> None:
+    min = 0
+    max = len(LOADED_EVENTS) - 1
+    mid: int
+    while min <= max:
+        mid = min + (max - min) // 2
+        if LOADED_EVENTS[mid].date == event.date:
+            break
+        elif LOADED_EVENTS[mid].date > event.date:
+            max = mid - 1
+        else:
+            min = mid + 1
+
+    LOADED_EVENTS.insert(max, event)
+    refresh_day(event.date)
+
+
+def refresh_day(date: int) -> None:
+    day = LOADED_DAYS.get(date)
+    if day is not None:
+        day.clear_elements()
+        day.load_elements()
 
 
 class Day(QPushButton):
     def __init__(self, date: Date) -> None:
         super().__init__()
 
+        LOADED_DAYS[date_to_serial(date)] = self
+
         self.date = date
         color = "blue" if date == Date.today() else "black"
         self.setStyleSheet(f"border-radius : 0; border : 2px solid {color}")
         self.setMinimumSize(100, 100)
-        self.events_layout = QVBoxLayout(self)
-        self.events_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.date_label = QLabel(
             f"{self.date.year}/{self.date.month}/{self.date.day}"
         )
+        self.events_layout = QVBoxLayout(self)
+        self.events_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.events_layout.addWidget(self.date_label)
         self.clicked.connect(self.create_new_event)
+        self.load_elements()
 
-        for event in db.fetch_events().on((self.date - UNIX_EPOCH).days).exec():
-            self.add_event_element(event)
+    def load_elements(self):
+        for event in get_loaded_events(self.date):
+            print("adding event ", event.name)
+            element = EventCalendarElement(event)
+            self.events_layout.addWidget(element)
+
+    def clear_elements(self):
+        for i in reversed(range(1, self.events_layout.count())):
+            item = self.events_layout.itemAt(i)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
 
     def create_new_event(self):
         form = EventEditor(
-            Event(-1, (self.date - UNIX_EPOCH).days, -1, "", "", [], [])
+            Event(-1, date_to_serial(self.date), -1, "", "", [], [])
         )
         form.exec()
-
-    def add_event_element(self, event: Event):
-        element = EventCalendarElement(event)
-        self.events_layout.addWidget(element)
 
 
 class EventCalendarElement(QPushButton):
@@ -126,14 +192,24 @@ class InfiniteScrollArea(QScrollArea):
             self.extend_upwards(5)
 
     def extend_downwards(self, n):
+        after = date_to_serial(self.max) - 1
+        before = after + 1 + (7 * n)
+        new_events = db.fetch_events().after(after).before(before).exec()
+        LOADED_EVENTS.extend(new_events)
         for _ in range(n):
-            self.max += UNIT_WEEK
             self.area_layout.addLayout(Week(self.max))
+            self.max += UNIT_WEEK
 
     def extend_upwards(self, n):
+        global LOADED_EVENTS
+        before = date_to_serial(self.min)
+        after = before - 1 - (7 * n)
+        new_events = db.fetch_events().before(before).after(after).exec()
+        new_events.extend(LOADED_EVENTS)
+        LOADED_EVENTS = new_events
         for _ in range(n):
-            self.area_layout.insertLayout(0, Week(self.min))
             self.min -= UNIT_WEEK
+            self.area_layout.insertLayout(0, Week(self.min))
 
     def correct_slider(self, min, max):
         if self.verticalScrollBar().value() == min:

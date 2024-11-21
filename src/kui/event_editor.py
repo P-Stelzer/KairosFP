@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 import db
 from db import Event, Tag
+import kui.calendar as calendar
 
 
 class EventEditor(QDialog):
@@ -98,7 +99,7 @@ class EventEditor(QDialog):
         print(self.target_event)
 
         if self.target_event.id < 0:
-            db.insert_event(
+            new_event = db.insert_event(
                 self.target_event.date,
                 self.target_event.amount,
                 self.target_event.name,
@@ -106,10 +107,13 @@ class EventEditor(QDialog):
                 self.target_event.accounts,
                 self.target_event.tag_ids,
             )
+            calendar.insert_new_event(new_event)
+
         else:
             db.alter_events(self.target_event)
             db.remove_tags_from_event(self.target_event.id, self.removed_tags)
             db.add_tags_to_event(self.target_event.id, self.added_tags)
+            calendar.refresh_day(self.target_event.date)
 
         self.close()
 

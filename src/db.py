@@ -240,11 +240,15 @@ class EventFetcher:
         self.tag_joins = 0
         self.account_joins = 0
 
-    def exec(self) -> list[Event]:
-        command = " ".join(self.begin) + (
-            (" WHERE " + " AND ".join(self.predicates))
-            if len(self.predicates) > 0
-            else ""
+    def exec(self, order_by: str = "date") -> list[Event]:
+        command = (
+            " ".join(self.begin)
+            + (
+                (" WHERE " + " AND ".join(self.predicates))
+                if len(self.predicates) > 0
+                else ""
+            )
+            + f" ORDER BY {order_by}"
         )
         curr = _conn.execute(command, self.params)
         result = curr.fetchall()
