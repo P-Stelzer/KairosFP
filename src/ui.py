@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer
 from datetime import date as Date, timedelta
-from db import Event, Tag, Account
+import db
 
 CURRENT_YEAR, CURRENT_WEEK, _ = Date.today().isocalendar()
 FIRST_DAY_OF_CURRENT_WEEK = Date.fromisocalendar(
@@ -105,33 +105,29 @@ class InfiniteScrollArea(QScrollArea):
             self.verticalScrollBar().setValue(max - self.slider_max)
         self.slider_max = max
 
-class EventEditor(QWidget):
-    def __init__(self) -> None:
+
+class EventEditorForm(QWidget):
+    def __init__(self, event: db.Event) -> None:
         super().__init__()
 
-        # EVENT VARIABLES
-        self.event_tags = []
-        self.event_name = ""
-        self.event_date = ""
-        self.event_amount = ""
-        self.event_memo = ""
-
+        self.event_editor = EventEditor(event)
+        self.tag_editor_form = EventTagEditor(event.tag_ids)
 
         # container (box)
         self.box = QVBoxLayout(self)
         self.top_layer = QHBoxLayout(self)
-       
 
         # WRAPPER: TOP_LAYER {
 
         # event name label (label)
         self.event_name_text_box = QLineEdit()
         self.event_name_text_box.setPlaceholderText("Event name...")
+        self.event_name_text_box.setText(event.name)
         self.top_layer.addWidget(self.event_name_text_box)
 
         # tag edit (button)
-        self.add_tag_button = QPushButton("Add Tags")
-        self.add_tag_button.clicked.connect(self.add_tags)
+        self.add_tag_button = QPushButton("Edit Tags")
+        self.add_tag_button.clicked.connect(self.launch_tag_editor_form)
         self.top_layer.addWidget(self.add_tag_button)
 
         # event color (button)
@@ -141,71 +137,93 @@ class EventEditor(QWidget):
         self.box.addLayout(self.top_layer)
         # }
 
-
         # amount (text box)
         self.event_amount_text_box = QLineEdit()
         self.event_amount_text_box.setPlaceholderText("Enter amount...")
+        self.event_amount_text_box.setText(str(event.amount))
         self.box.addWidget(self.event_amount_text_box)
 
         # memo (text box)
         self.event_memo_text_box = QLineEdit()
         self.event_memo_text_box.setPlaceholderText("Enter memo...")
+        self.event_memo_text_box.setText(event.memo)
         self.box.addWidget(self.event_memo_text_box)
 
         # associated account (list of accounts)
 
-            # add account (button)
+        # add account (button)
 
         # confirm button (button)
-        self.confirm_button = QPushButton("Confirm Changes")
-        self.confirm_button.clicked.connect(self.confirm_event_changes)
+        self.confirm_button = QPushButton("Confirm")
+        self.confirm_button.clicked.connect(self.attempt_confirm)
         self.box.addWidget(self.confirm_button)
 
-
         self.setLayout(self.box)
-        
-    def add_tags(self):
-        self.tags_widget = QDialog(self)
-        self.tags_layout = QVBoxLayout(self.tags_widget)
 
-        self.db_tags = ["Tag1", "Tag2", "Tag3"] # IMPORT FROM DATABASE
+    def launch_tag_editor_form(self):
+        self.tag_editor_form.exec()
+
+    def attempt_confirm(self):
+        name = self.event_name_text_box.text()
+        amount = self.event_amount_text_box.text()
+        memo = self.event_memo_text_box.text()
+        if self.event_editor.confirm_event_changes(name, amount, memo):
+            pass
+
+
+class EventTagEditor(QDialog):
+    def __init__(self, event_tags: list[int]) -> None:
+        super().__init__()
+
+        self.event_tags = event_tags
+
+        self.tags_layout = QVBoxLayout(self)
+
+        self.db_tags = db.fetch_all_registered_tags()
 
         # clicking tag from list adds it to that specific event
         for tag in self.db_tags:
-            tag_button = QPushButton(f"Add {tag}")
-            tag_button.clicked.connect(
-                lambda checked, tag=tag, tag_button=tag_button: 
-                    self.add_tag_to_event(tag, tag_button)
-            )
+            tag_button = EventTagEditorButton(self, tag, tag in event_tags)
             self.tags_layout.addWidget(tag_button)
 
-        self.tags_widget.exec()
 
-    def add_tag_to_event(self, tag, tag_button):
-        # Add the tag to event
-        if tag not in self.event_tags: 
-            self.event_tags.append(tag)
-            tag_button.setText(f"Remove {tag}")
-            print(f"Just added {tag}, tags = {self.event_tags}")
-        else: # Remove the tag from event
-            self.event_tags.remove(tag)
-            tag_button.setText(f"Add {tag}")
-            print(f"Removed {tag}, tags = {self.event_tags}")
+class EventTagEditorButton(QPushButton):
+    def __init__(
+        self, tag_editor: EventTagEditor, tag: db.Tag, tag_present: bool
+    ):
+        super().__init__()
 
-    def update_tags(self):
-        # regenerate new tags
-        for tag in self.event_tags:
-            tag_button = QLabel(tag)
-            self.tags_layout.addWidget(tag_button)
+        self.tag_editor = tag_editor
+        self.tag = tag
+        self.tag_present = tag_present
+
+        self.update_text()
+
+        self.clicked.connect(self.toggle_tag)
+
+    def update_text(self):
+        if self.tag_present:
+            self.setText(f"Remove {self.tag.name}")
+        else:
+            self.setText(f"Add {self.tag.name}")
+
+    def toggle_tag(self):
+        if self.tag_present:
+            self.tag_editor.event_tags.remove(self.tag.id)
+        else:
+            self.tag_editor.event_tags.append(self.tag.id)
+
+        self.tag_present = not self.tag_present
+        self.update_text()
+
+
+class EventEditor:
+    def __init__(self, event: db.Event) -> None:
+        self.event = event
 
     # updates the self variables to the database
-    def confirm_event_changes(self): 
-        self.event_name = self.event_name_text_box.text()
-        self.event_amount = self.event_amount_text_box.text()
-        self.event_memo = self.event_memo_text_box.text()
-
-        print(f"Updated name: {self.event_name}")
-        print(f"Updated amount: {self.event_amount}")
-        print(f"Updated memo: {self.event_memo}")
-        
-
+    def confirm_event_changes(self, name, amount, memo) -> bool:
+        print(f"Updated name: {name}")
+        print(f"Updated amount: {amount}")
+        print(f"Updated memo: {memo}")
+        return True

@@ -13,8 +13,7 @@ def __initialize_schema__():
             date INTEGER,
             amount INTEGER,
             name STRING,
-            debit INTEGER REFERENCES account(id) ON DELETE SET NULL,
-            credit INTEGER REFERENCES account(id) ON DELETE SET NULL
+            memo STRING
         );
         CREATE TABLE IF NOT EXISTS tag (
             id INTEGER PRIMARY KEY ASC,
@@ -70,13 +69,15 @@ class Event:
         date: int,
         amount: int,
         name: str,
+        memo: str,
         accounts: list[tuple[int, bool]],
-        *tag_ids: int,
+        tag_ids: list[int],
     ) -> None:
         self.id = id
         self.date = date
         self.amount = amount
         self.name = name
+        self.memo = memo
         self.accounts = accounts
         self.tag_ids = tag_ids
 
@@ -85,12 +86,13 @@ def insert_event(
     date: int,
     amount: int,
     name: str,
+    memo: str,
     accounts: list[tuple[int, bool]],
-    *tag_ids: int,
+    tag_ids: list[int],
 ) -> Event:
     cur = _conn.execute(
-        "INSERT INTO event VALUES (?,?,?,?,?,?)",
-        (None, date, amount, name),
+        "INSERT INTO event VALUES (?,?,?,?,?)",
+        (None, date, amount, name, memo),
     )
     if cur is None:
         raise RuntimeError("Event insert Error: cursor is None")
@@ -112,24 +114,26 @@ def insert_event(
             [(id, tag_id) for tag_id in tag_ids],
         )
 
-    return Event(id, date, amount, name, accounts, *tag_ids)
+    _conn.commit()
+
+    return Event(id, date, amount, name, memo, accounts, tag_ids)
 
 
 def alter_events(*events: Event) -> None:
     _conn.executemany(
-        "UPDATE event SET date = ?, amount = ?, name = ? WHERE id = ?",
-        [(e.date, e.amount, e.name, e.id) for e in events],
+        "UPDATE event SET date = ?, amount = ?, name = ?, memo = ? WHERE id = ?",
+        [(e.date, e.amount, e.name, e.memo, e.id) for e in events],
     )
 
 
-def add_tags_to_event(event_id: int, *tag_ids: int) -> None:
+def add_tags_to_event(event_id: int, tag_ids: list[int]) -> None:
     _conn.executemany(
         "INSERT INTO event_tags VALUES (?,?)",
         [(event_id, tag_id) for tag_id in tag_ids],
     )
 
 
-def remove_tags_from_event(event_id: int, *tag_ids: int) -> None:
+def remove_tags_from_event(event_id: int, tag_ids: list[int]) -> None:
     _conn.executemany(
         "DELETE FROM event_tags WHERE event_id = ? AND tag_id = ?",
         [(event_id, tag_id) for tag_id in tag_ids],
@@ -148,7 +152,7 @@ def add_accounts_to_event(
     )
 
 
-def remove_accounts_from_event(event_id: int, *account_ids: int) -> None:
+def remove_accounts_from_event(event_id: int, account_ids: list[int]) -> None:
     _conn.executemany(
         "DELETE FROM event_accounts WHERE event_id = ? AND account_id = ?",
         [(event_id, account_id) for account_id in account_ids],
@@ -161,8 +165,38 @@ def delete_events(*events: Event) -> None:
     )
 
 
+def _get_accounts_for_event(event_id: int) -> list[tuple[int, bool]]:
+    cur = _conn.execute(
+        "SELECT account_id, is_credit FROM event_accounts WHERE event_id = ?",
+        (event_id,),
+    )
+
+    result = cur.fetchall()
+
+    accounts: list[tuple[int, bool]] = list()
+    for account_id, is_credit in result:
+        accounts.append((account_id, is_credit))
+
+    return accounts
+
+
+def _get_tags_for_event(event_id: int) -> list[int]:
+    cur = _conn.execute(
+        "SELECT tag_id FROM event_tags WHERE event_id = ?",
+        (event_id,),
+    )
+
+    result = cur.fetchall()
+
+    tags: list[int] = list()
+    for tag_id in result:
+        tags.append(tag_id)
+
+    return tags
+
+
 class EventFetcher:
-    def __init__(self, columns: str = "id, date, amount, name") -> None:
+    def __init__(self, columns: str = "id, date, amount, name, memo") -> None:
         self.params: list[int | str | None] = list()
         self.begin: list[str] = list()
         self.predicates: list[str] = list()
@@ -170,14 +204,22 @@ class EventFetcher:
         self.tag_joins = 0
         self.account_joins = 0
 
-    def exec(self) -> list[Any]:
+    def exec(self) -> list[Event]:
         command = " ".join(self.begin) + (
             (" WHERE " + " AND ".join(self.predicates))
             if len(self.predicates) > 0
             else ""
         )
         curr = _conn.execute(command, self.params)
-        return curr.fetchall()
+        result = curr.fetchall()
+
+        events: list[Event] = list()
+        for id, date, amount, name, memo in result:
+            accounts = _get_accounts_for_event(id)
+            tags = _get_tags_for_event(id)
+            events.append(Event(id, date, amount, name, memo, accounts, tags))
+
+        return events
 
     def before(self, date: int) -> Self:
         self.predicates.append("date < ?")
@@ -309,6 +351,8 @@ def register_tag(name: str, description: str) -> Tag:
     if id is None:
         raise RuntimeError("Could not obtain id for new tag")
 
+    _conn.commit()
+
     return Tag(id, name, description)
 
 
@@ -365,6 +409,8 @@ def register_account(
     id = cur.lastrowid
     if id is None:
         raise RuntimeError("Could not obtain id for new account")
+
+    _conn.commit()
 
     return Account(id, name, description, min_balance, max_balance)
 
