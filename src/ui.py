@@ -176,7 +176,7 @@ class EventEditorForm(QDialog):
         self.event_amount_text_box = QLineEdit()
         self.event_amount_text_box.setPlaceholderText("Enter amount...")
         self.event_amount_text_box.setInputMask("")
-        self.amount_validator = QDoubleValidator(0, 1000.0, 2, self)
+        self.amount_validator = QDoubleValidator(0, 999999999.99, 2, self)
         self.amount_validator.setNotation(
             QDoubleValidator.Notation.StandardNotation
         )
@@ -233,6 +233,8 @@ class EventEditorForm(QDialog):
             )
         else:
             db.alter_events(self.event_data)
+
+        self.close()
 
     def confirm_event_changes(self, name, amount, memo) -> bool:
         print(f"Updated name: {name}")
