@@ -1,17 +1,27 @@
 import sys
 from PySide6.QtCore import Qt, QRect
 from PySide6.QtGui import QPainter, QRegion
-from PySide6.QtWidgets import QApplication, QPushButton, QCalendarWidget, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QPushButton,
+    QCalendarWidget,
+    QMainWindow,
+    QVBoxLayout,
+    QWidget,
+)
 from PySide6.QtCore import Slot
+
 
 class CalendarWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        
+
         screen = QApplication.primaryScreen().geometry()
         print(f"Screen Dimensions: {screen.x()} x {screen.y()}")
         self.setWindowTitle("EL CALONDER")
-        self.setGeometry(screen.x(), screen.y(), screen.width(), screen.height())
+        self.setGeometry(
+            screen.x(), screen.y(), screen.width(), screen.height()
+        )
 
         # make widget for calendar
         central_widget = QWidget(self)
@@ -24,17 +34,16 @@ class CalendarWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Set a custom shape for the window
-        self.setWindowFlags(Qt.FramelessWindowHint)  # No title bar
+        # self.setWindowFlags(Qt.FramelessWindowHint)  # No title bar
         self.setMask(self.createCalendarShape())
         self.styleCalendar()
-
 
     def createCalendarShape(self):
         size = self.size()
         rect = QRect(0, 0, size.width(), size.height())
         region = QRegion(rect)
         return region
-    
+
     # Set custom styles for the calendar
     def styleCalendar(self):
         self.setStyleSheet("""
@@ -64,7 +73,7 @@ class CalendarWindow(QMainWindow):
                 background-color: #cce4ff;
             }
         """)
-        
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
