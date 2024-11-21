@@ -96,8 +96,6 @@ class EventEditor(QDialog):
         self.target_event.memo = memo
         self.target_event.amount = serialized_amount
 
-        print(self.target_event)
-
         if self.target_event.id < 0:
             new_event = db.insert_event(
                 self.target_event.date,
@@ -123,7 +121,6 @@ class TagSelector(QDialog):
         super().__init__()
 
         self.event_editor = event_editor
-        print(self.event_editor.target_event.tag_ids)
 
         self.tags_layout = QVBoxLayout(self)
 
@@ -169,6 +166,3 @@ class TagSelectorButton(QPushButton):
                 self.tag_editor.event_editor.added_tags.append(self.tag.id)
             case (False, False):
                 self.tag_editor.event_editor.added_tags.remove(self.tag.id)
-
-        print(self.tag_editor.event_editor.removed_tags)
-        print(self.tag_editor.event_editor.added_tags)

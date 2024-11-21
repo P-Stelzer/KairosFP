@@ -226,8 +226,6 @@ def _get_tags_for_event(event_id: int) -> list[int]:
     for tag_id in result:
         tags.append(tag_id[0])
 
-    print(tags)
-
     return tags
 
 
