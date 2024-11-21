@@ -34,17 +34,17 @@ LOADED_EVENTS: list[Event] = list()
 
 def get_loaded_events(date: Date) -> list[Event]:
     serial = date_to_serial(date)
-    min = 0
-    max = len(LOADED_EVENTS) - 1
-    mid: int
-    while min <= max:
-        mid = min + (max - min) // 2
+    low = 0
+    high = len(LOADED_EVENTS) - 1
+    mid = 0
+    while low <= high:
+        mid = low + (high - low) // 2
         if LOADED_EVENTS[mid].date == serial:
             break
         elif LOADED_EVENTS[mid].date > serial:
-            max = mid - 1
+            high = mid - 1
         else:
-            min = mid + 1
+            low = mid + 1
 
     while mid - 1 >= 0 and LOADED_EVENTS[mid - 1].date == serial:
         mid -= 1
@@ -58,19 +58,24 @@ def get_loaded_events(date: Date) -> list[Event]:
 
 
 def insert_new_event(event: Event) -> None:
-    min = 0
-    max = len(LOADED_EVENTS) - 1
-    mid: int
-    while min <= max:
-        mid = min + (max - min) // 2
+    low = 0
+    high = len(LOADED_EVENTS) - 1
+    mid = 0
+    while low <= high:
+        mid = low + (high - low) // 2
         if LOADED_EVENTS[mid].date == event.date:
-            break
+            while (
+                mid < len(LOADED_EVENTS)
+                and LOADED_EVENTS[mid].date == event.date
+            ):
+                mid += 1
+            low = mid
         elif LOADED_EVENTS[mid].date > event.date:
-            max = mid - 1
+            high = mid - 1
         else:
-            min = mid + 1
+            low = mid + 1
 
-    LOADED_EVENTS.insert(max, event)
+    LOADED_EVENTS.insert(low, event)
     refresh_day(event.date)
 
 
@@ -102,7 +107,6 @@ class Day(QPushButton):
 
     def load_elements(self):
         for event in get_loaded_events(self.date):
-            print("adding event ", event.name)
             element = EventCalendarElement(event)
             self.events_layout.addWidget(element)
 
