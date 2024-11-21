@@ -32,24 +32,26 @@ class Day(QPushButton):
         color = "blue" if date == Date.today() else "black"
         self.setStyleSheet(f"border-radius : 0; border : 2px solid {color}")
         self.setMinimumSize(100, 100)
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        date_label = QLabel(
+        self.events_layout = QVBoxLayout(self)
+        self.events_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.date_label = QLabel(
             f"{self.date.year}/{self.date.month}/{self.date.day}"
         )
-        layout.addWidget(date_label)
-        layout.addWidget(
-            EventCalendarElement(
-                Event(2, 2, 2, "Test2", "This is Test2", [], [])
-            )
-        )
-        self.clicked.connect(self.add_new_event)
+        self.events_layout.addWidget(self.date_label)
+        self.clicked.connect(self.create_new_event)
 
-    def add_new_event(self):
+        for event in db.fetch_events().on((self.date - UNIX_EPOCH).days).exec():
+            self.add_event_element(event)
+
+    def create_new_event(self):
         form = EventEditorForm(
-            Event(-1, (Date.today() - UNIX_EPOCH).days, -1, "", "", [], [])
+            Event(-1, (self.date - UNIX_EPOCH).days, -1, "", "", [], [])
         )
         form.exec()
+
+    def add_event_element(self, event: Event):
+        element = EventCalendarElement(event)
+        self.events_layout.addWidget(element)
 
 
 class EventCalendarElement(QPushButton):
@@ -145,8 +147,11 @@ class EventEditorForm(QDialog):
     def __init__(self, event: Event) -> None:
         super().__init__()
 
-        self.event_data = event
-        self.tag_editor_form = EventTagEditor(event.tag_ids)
+        self.target_event = event
+
+        self.added_tags: list[int] = list()
+        self.removed_tags: list[int] = list()
+        self.tag_editor_form = EventTagEditor(self)
 
         # container (box)
         self.box = QVBoxLayout(self)
@@ -175,12 +180,15 @@ class EventEditorForm(QDialog):
         # amount (text box)
         self.event_amount_text_box = QLineEdit()
         self.event_amount_text_box.setPlaceholderText("Enter amount...")
-        self.event_amount_text_box.setInputMask("")
         self.amount_validator = QDoubleValidator(0, 999999999.99, 2, self)
         self.amount_validator.setNotation(
             QDoubleValidator.Notation.StandardNotation
         )
         self.event_amount_text_box.setValidator(self.amount_validator)
+        if event.amount >= 0:
+            self.event_amount_text_box.setText(
+                f"{event.amount//100}.{event.amount%100}"
+            )
         self.box.addWidget(self.event_amount_text_box)
 
         # memo (text box)
@@ -216,70 +224,80 @@ class EventEditorForm(QDialog):
         cent_amount = int(split_amount[1]) if len(split_amount) > 1 else 0
         serialized_amount = (dollar_amount * 100) + cent_amount
 
-        self.event_data.name = name
-        self.event_data.memo = memo
-        self.event_data.amount = serialized_amount
+        self.target_event.name = name
+        self.target_event.memo = memo
+        self.target_event.amount = serialized_amount
 
-        print(self.event_data)
+        print(self.target_event)
 
-        if self.event_data.id < 0:
+        if self.target_event.id < 0:
             db.insert_event(
-                self.event_data.date,
-                self.event_data.amount,
-                self.event_data.name,
-                self.event_data.memo,
-                self.event_data.accounts,
-                self.event_data.tag_ids,
+                self.target_event.date,
+                self.target_event.amount,
+                self.target_event.name,
+                self.target_event.memo,
+                self.target_event.accounts,
+                self.target_event.tag_ids,
             )
         else:
-            db.alter_events(self.event_data)
+            db.alter_events(self.target_event)
+            db.remove_tags_from_event(self.target_event.id, self.removed_tags)
+            db.add_tags_to_event(self.target_event.id, self.added_tags)
 
         self.close()
 
-    def confirm_event_changes(self, name, amount, memo) -> bool:
-        print(f"Updated name: {name}")
-        print(f"Updated amount: {amount}")
-        print(f"Updated memo: {memo}")
-        return True
-
 
 class EventTagEditor(QDialog):
-    def __init__(self, event_tags: list[int]) -> None:
+    def __init__(self, event_editor: EventEditorForm) -> None:
         super().__init__()
 
-        self.event_tags = event_tags
+        self.event_editor = event_editor
+        print(self.event_editor.target_event.tag_ids)
 
         self.tags_layout = QVBoxLayout(self)
 
         # clicking tag from list adds it to that specific event
         for tag in db.fetch_all_registered_tags():
-            tag_button = EventTagEditorButton(self, tag, tag in event_tags)
+            tag_button = EventTagEditorButton(
+                self, tag, tag.id in self.event_editor.target_event.tag_ids
+            )
             self.tags_layout.addWidget(tag_button)
 
 
 class EventTagEditorButton(QPushButton):
-    def __init__(self, tag_editor: EventTagEditor, tag: Tag, tag_present: bool):
+    def __init__(
+        self, tag_editor: EventTagEditor, tag: Tag, is_event_member: bool
+    ):
         super().__init__()
 
         self.tag_editor = tag_editor
         self.tag = tag
-        self.tag_present = tag_present
+        self.is_event_member = is_event_member
+        self.is_activated = is_event_member
 
         self.update_text()
 
         self.clicked.connect(self.toggle_tag)
 
     def update_text(self):
-        if self.tag_present:
+        if self.is_activated:
             self.setText(f"Remove {self.tag.name}")
         else:
             self.setText(f"Add {self.tag.name}")
 
     def toggle_tag(self):
-        if self.tag_present:
-            self.tag_editor.event_tags.remove(self.tag.id)
-        else:
-            self.tag_editor.event_tags.append(self.tag.id)
-
-        self.tag_present = not self.tag_present
+        self.is_activated = not self.is_activated
         self.update_text()
+
+        match (self.is_event_member, self.is_activated):
+            case (True, True):
+                self.tag_editor.event_editor.removed_tags.remove(self.tag.id)
+            case (True, False):
+                self.tag_editor.event_editor.removed_tags.append(self.tag.id)
+            case (False, True):
+                self.tag_editor.event_editor.added_tags.append(self.tag.id)
+            case (False, False):
+                self.tag_editor.event_editor.added_tags.remove(self.tag.id)
+
+        print(self.tag_editor.event_editor.removed_tags)
+        print(self.tag_editor.event_editor.added_tags)

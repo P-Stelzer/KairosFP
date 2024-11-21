@@ -153,6 +153,8 @@ def alter_events(*events: Event) -> None:
         [(e.date, e.amount, e.name, e.memo, e.id) for e in events],
     )
 
+    _conn.commit()
+
 
 def add_tags_to_event(event_id: int, tag_ids: list[int]) -> None:
     _conn.executemany(
@@ -160,12 +162,16 @@ def add_tags_to_event(event_id: int, tag_ids: list[int]) -> None:
         [(event_id, tag_id) for tag_id in tag_ids],
     )
 
+    _conn.commit()
+
 
 def remove_tags_from_event(event_id: int, tag_ids: list[int]) -> None:
     _conn.executemany(
         "DELETE FROM event_tags WHERE event_id = ? AND tag_id = ?",
         [(event_id, tag_id) for tag_id in tag_ids],
     )
+
+    _conn.commit()
 
 
 def add_accounts_to_event(
@@ -218,7 +224,9 @@ def _get_tags_for_event(event_id: int) -> list[int]:
 
     tags: list[int] = list()
     for tag_id in result:
-        tags.append(tag_id)
+        tags.append(tag_id[0])
+
+    print(tags)
 
     return tags
 
@@ -245,7 +253,9 @@ class EventFetcher:
         for id, date, amount, name, memo in result:
             accounts = _get_accounts_for_event(id)
             tags = _get_tags_for_event(id)
-            events.append(Event(id, date, amount, name, memo, accounts, tags))
+            events.append(
+                Event(id, date, amount, str(name), str(memo), accounts, tags)
+            )
 
         return events
 
@@ -256,6 +266,11 @@ class EventFetcher:
 
     def after(self, date: int) -> Self:
         self.predicates.append("date > ?")
+        self.params.append(date)
+        return self
+
+    def on(self, date: int) -> Self:
+        self.predicates.append("date = ?")
         self.params.append(date)
         return self
 
