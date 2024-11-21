@@ -1,12 +1,12 @@
 import sys
 from PySide6.QtWidgets import QApplication
-import ui
-import db
+
+from kui.calendar import InfiniteScrollArea
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    window = ui.InfiniteScrollArea()
+    window = InfiniteScrollArea()
     window.show()
 
     app.exec()

@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt, QTimer
 from datetime import date as Date, timedelta
 import db
 from db import Event, Tag
-from event_editor import Form as EventEditorForm
+from kui.event_editor import EventEditor
 
 CURRENT_YEAR, CURRENT_WEEK, _ = Date.today().isocalendar()
 FIRST_DAY_OF_CURRENT_WEEK = Date.fromisocalendar(
@@ -18,6 +18,10 @@ FIRST_DAY_OF_CURRENT_WEEK = Date.fromisocalendar(
 ) - timedelta(days=1)  # -1 days to make it sunday
 UNIT_WEEK = timedelta(weeks=1)
 UNIX_EPOCH = Date(1970, 1, 1)
+
+
+LOADED_DAYS: dict[int, "Day"] = dict()
+LOADED_EVENTS: list[Event] = list()
 
 
 class Day(QPushButton):
@@ -40,7 +44,7 @@ class Day(QPushButton):
             self.add_event_element(event)
 
     def create_new_event(self):
-        form = EventEditorForm(
+        form = EventEditor(
             Event(-1, (self.date - UNIX_EPOCH).days, -1, "", "", [], [])
         )
         form.exec()
@@ -61,7 +65,7 @@ class EventCalendarElement(QPushButton):
         self.clicked.connect(self.launch_editor)
 
     def launch_editor(self):
-        form = EventEditorForm(self.data)
+        form = EventEditor(self.data)
         form.exec()
 
 
@@ -92,8 +96,8 @@ class InfiniteScrollArea(QScrollArea):
 
         self.setWidget(area_widget)
 
-        self.min = 0  # Number of weeks before current week
-        self.max = 0  # Number of weeks after current week
+        self.min = FIRST_DAY_OF_CURRENT_WEEK
+        self.max = self.min
 
         # Check scrollbar position on a timer
         self.timer = QTimer(self)
@@ -123,15 +127,13 @@ class InfiniteScrollArea(QScrollArea):
 
     def extend_downwards(self, n):
         for _ in range(n):
-            new_week = FIRST_DAY_OF_CURRENT_WEEK + (self.max * UNIT_WEEK)
-            self.area_layout.addLayout(Week(new_week))
-            self.max += 1
+            self.max += UNIT_WEEK
+            self.area_layout.addLayout(Week(self.max))
 
     def extend_upwards(self, n):
         for _ in range(n):
-            self.min -= 1
-            new_week = FIRST_DAY_OF_CURRENT_WEEK + (self.min * UNIT_WEEK)
-            self.area_layout.insertLayout(0, Week(new_week))
+            self.area_layout.insertLayout(0, Week(self.min))
+            self.min -= UNIT_WEEK
 
     def correct_slider(self, min, max):
         if self.verticalScrollBar().value() == min:

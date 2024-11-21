@@ -10,7 +10,7 @@ import db
 from db import Event, Tag
 
 
-class EventEditorForm(QDialog):
+class EventEditor(QDialog):
     def __init__(self, event: Event) -> None:
         super().__init__()
 
@@ -18,7 +18,7 @@ class EventEditorForm(QDialog):
 
         self.added_tags: list[int] = list()
         self.removed_tags: list[int] = list()
-        self.tag_editor_form = EventTagEditor(self)
+        self.tag_editor_form = TagSelector(self)
 
         # container (box)
         self.box = QVBoxLayout(self)
@@ -114,8 +114,8 @@ class EventEditorForm(QDialog):
         self.close()
 
 
-class EventTagEditor(QDialog):
-    def __init__(self, event_editor: EventEditorForm) -> None:
+class TagSelector(QDialog):
+    def __init__(self, event_editor: EventEditor) -> None:
         super().__init__()
 
         self.event_editor = event_editor
@@ -125,15 +125,15 @@ class EventTagEditor(QDialog):
 
         # clicking tag from list adds it to that specific event
         for tag in db.fetch_all_registered_tags():
-            tag_button = EventTagEditorButton(
+            tag_button = TagSelectorButton(
                 self, tag, tag.id in self.event_editor.target_event.tag_ids
             )
             self.tags_layout.addWidget(tag_button)
 
 
-class EventTagEditorButton(QPushButton):
+class TagSelectorButton(QPushButton):
     def __init__(
-        self, tag_editor: EventTagEditor, tag: Tag, is_event_member: bool
+        self, tag_editor: TagSelector, tag: Tag, is_event_member: bool
     ):
         super().__init__()
 
