@@ -4,6 +4,54 @@ from typing import Any, Self
 _conn = sqlite3.connect("kfp.db")
 
 
+class Event:
+    def __init__(
+        self,
+        id: int,
+        date: int,
+        amount: int,
+        name: str,
+        memo: str,
+        accounts: list[tuple[int, bool]],
+        tag_ids: list[int],
+    ) -> None:
+        self.id = id
+        self.date = date
+        self.amount = amount
+        self.name = name
+        self.memo = memo
+        self.accounts = accounts
+        self.tag_ids = tag_ids
+
+    def __str__(self) -> str:
+        return "\n".join(
+            [f"{str(f)}: {str(v)}" for f, v in self.__dict__.items()]
+        )
+
+
+class Tag:
+    def __init__(self, id: int, name: str, description: str) -> None:
+        self.id = id
+        self.name = name
+        self.description = description
+
+
+class Account:
+    def __init__(
+        self,
+        id: int,
+        name: str,
+        description: str,
+        min_balance: int | None,
+        max_balance: int | None,
+    ) -> None:
+        self.id = id
+        self.name = name
+        self.description = description
+        self.min_balance = min_balance
+        self.max_balance = max_balance
+
+
 def __initialize_schema__():
     _conn.executescript(
         """
@@ -60,26 +108,6 @@ def __reset_schema__():
     )
     _conn.commit()
     # __initialize_schema__()
-
-
-class Event:
-    def __init__(
-        self,
-        id: int,
-        date: int,
-        amount: int,
-        name: str,
-        memo: str,
-        accounts: list[tuple[int, bool]],
-        tag_ids: list[int],
-    ) -> None:
-        self.id = id
-        self.date = date
-        self.amount = amount
-        self.name = name
-        self.memo = memo
-        self.accounts = accounts
-        self.tag_ids = tag_ids
 
 
 def insert_event(
@@ -332,13 +360,6 @@ def fetch_events() -> EventFetcher:
     return EventFetcher()
 
 
-class Tag:
-    def __init__(self, id: int, name: str, description: str) -> None:
-        self.id = id
-        self.name = name
-        self.description = description
-
-
 def register_tag(name: str, description: str) -> Tag:
     cur = _conn.execute(
         "INSERT INTO tag VALUES (?, ?, ?)", (None, name, description)
@@ -374,22 +395,6 @@ def fetch_all_registered_tags() -> list[Tag]:
     for id, name, description in result:
         tags.append(Tag(id, name, description))
     return tags
-
-
-class Account:
-    def __init__(
-        self,
-        id: int,
-        name: str,
-        description: str,
-        min_balance: int | None,
-        max_balance: int | None,
-    ) -> None:
-        self.id = id
-        self.name = name
-        self.description = description
-        self.min_balance = min_balance
-        self.max_balance = max_balance
 
 
 def register_account(

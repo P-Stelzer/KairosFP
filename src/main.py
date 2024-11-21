@@ -9,9 +9,4 @@ if __name__ == "__main__":
     window = ui.InfiniteScrollArea()
     window.show()
 
-    editor = ui.EventEditorForm(
-        db.Event(1, 1, 1, "Test", "This is a test", [], [])
-    )
-    editor.show()
-
     app.exec()

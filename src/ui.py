@@ -1,3 +1,4 @@
+from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QPushButton,
@@ -13,12 +14,14 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from datetime import date as Date, timedelta
 import db
+from db import Event, Tag
 
 CURRENT_YEAR, CURRENT_WEEK, _ = Date.today().isocalendar()
 FIRST_DAY_OF_CURRENT_WEEK = Date.fromisocalendar(
     CURRENT_YEAR, CURRENT_WEEK, 1
 ) - timedelta(days=1)  # -1 days to make it sunday
 UNIT_WEEK = timedelta(weeks=1)
+UNIX_EPOCH = Date(1970, 1, 1)
 
 
 class Day(QPushButton):
@@ -29,7 +32,39 @@ class Day(QPushButton):
         color = "blue" if date == Date.today() else "black"
         self.setStyleSheet(f"border-radius : 0; border : 2px solid {color}")
         self.setMinimumSize(100, 100)
-        self.setText(f"{self.date.year}/{self.date.month}/{self.date.day}")
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        date_label = QLabel(
+            f"{self.date.year}/{self.date.month}/{self.date.day}"
+        )
+        layout.addWidget(date_label)
+        layout.addWidget(
+            EventCalendarElement(
+                Event(2, 2, 2, "Test2", "This is Test2", [], [])
+            )
+        )
+        self.clicked.connect(self.add_new_event)
+
+    def add_new_event(self):
+        form = EventEditorForm(
+            Event(-1, (Date.today() - UNIX_EPOCH).days, -1, "", "", [], [])
+        )
+        form.exec()
+
+
+class EventCalendarElement(QPushButton):
+    def __init__(self, data: Event) -> None:
+        super().__init__()
+
+        self.data = data
+
+        self.setText(self.data.name)
+
+        self.clicked.connect(self.launch_editor)
+
+    def launch_editor(self):
+        form = EventEditorForm(self.data)
+        form.exec()
 
 
 class Week(QHBoxLayout):
@@ -106,16 +141,16 @@ class InfiniteScrollArea(QScrollArea):
         self.slider_max = max
 
 
-class EventEditorForm(QWidget):
-    def __init__(self, event: db.Event) -> None:
+class EventEditorForm(QDialog):
+    def __init__(self, event: Event) -> None:
         super().__init__()
 
-        self.event_editor = EventEditor(event)
+        self.event_data = event
         self.tag_editor_form = EventTagEditor(event.tag_ids)
 
         # container (box)
         self.box = QVBoxLayout(self)
-        self.top_layer = QHBoxLayout(self)
+        self.top_layer = QHBoxLayout()
 
         # WRAPPER: TOP_LAYER {
 
@@ -140,7 +175,12 @@ class EventEditorForm(QWidget):
         # amount (text box)
         self.event_amount_text_box = QLineEdit()
         self.event_amount_text_box.setPlaceholderText("Enter amount...")
-        self.event_amount_text_box.setText(str(event.amount))
+        self.event_amount_text_box.setInputMask("")
+        self.amount_validator = QDoubleValidator(0, 1000.0, 2, self)
+        self.amount_validator.setNotation(
+            QDoubleValidator.Notation.StandardNotation
+        )
+        self.event_amount_text_box.setValidator(self.amount_validator)
         self.box.addWidget(self.event_amount_text_box)
 
         # memo (text box)
@@ -167,8 +207,38 @@ class EventEditorForm(QWidget):
         name = self.event_name_text_box.text()
         amount = self.event_amount_text_box.text()
         memo = self.event_memo_text_box.text()
-        if self.event_editor.confirm_event_changes(name, amount, memo):
-            pass
+        if len(amount) == 0:
+            print("Invlaid input amount")
+            return
+
+        split_amount = amount.split(".")
+        dollar_amount = int(split_amount[0])
+        cent_amount = int(split_amount[1]) if len(split_amount) > 1 else 0
+        serialized_amount = (dollar_amount * 100) + cent_amount
+
+        self.event_data.name = name
+        self.event_data.memo = memo
+        self.event_data.amount = serialized_amount
+
+        print(self.event_data)
+
+        if self.event_data.id < 0:
+            db.insert_event(
+                self.event_data.date,
+                self.event_data.amount,
+                self.event_data.name,
+                self.event_data.memo,
+                self.event_data.accounts,
+                self.event_data.tag_ids,
+            )
+        else:
+            db.alter_events(self.event_data)
+
+    def confirm_event_changes(self, name, amount, memo) -> bool:
+        print(f"Updated name: {name}")
+        print(f"Updated amount: {amount}")
+        print(f"Updated memo: {memo}")
+        return True
 
 
 class EventTagEditor(QDialog):
@@ -179,18 +249,14 @@ class EventTagEditor(QDialog):
 
         self.tags_layout = QVBoxLayout(self)
 
-        self.db_tags = db.fetch_all_registered_tags()
-
         # clicking tag from list adds it to that specific event
-        for tag in self.db_tags:
+        for tag in db.fetch_all_registered_tags():
             tag_button = EventTagEditorButton(self, tag, tag in event_tags)
             self.tags_layout.addWidget(tag_button)
 
 
 class EventTagEditorButton(QPushButton):
-    def __init__(
-        self, tag_editor: EventTagEditor, tag: db.Tag, tag_present: bool
-    ):
+    def __init__(self, tag_editor: EventTagEditor, tag: Tag, tag_present: bool):
         super().__init__()
 
         self.tag_editor = tag_editor
@@ -215,15 +281,3 @@ class EventTagEditorButton(QPushButton):
 
         self.tag_present = not self.tag_present
         self.update_text()
-
-
-class EventEditor:
-    def __init__(self, event: db.Event) -> None:
-        self.event = event
-
-    # updates the self variables to the database
-    def confirm_event_changes(self, name, amount, memo) -> bool:
-        print(f"Updated name: {name}")
-        print(f"Updated amount: {amount}")
-        print(f"Updated memo: {memo}")
-        return True
