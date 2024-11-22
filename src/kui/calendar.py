@@ -152,12 +152,11 @@ class EventCalendarElement(QPushButton):
         context_menu = QMenu(self)
 
         edit_event = QAction("Edit Event", self)
-        delete_event = QAction("Delete Event", self)
-
         edit_event.triggered.connect(self.launch_editor)
-        delete_event.triggered.connect(self.delete_event)
-
         context_menu.addAction(edit_event)
+
+        delete_event = QAction("Delete Event", self)
+        delete_event.triggered.connect(self.delete_event)
         context_menu.addAction(delete_event)
 
         context_menu.exec(self.mapToGlobal(position))

@@ -131,13 +131,13 @@ def insert_event(
         raise RuntimeError("Could not obtain id for new event")
 
     if len(accounts) > 0:
-        _conn.execute(
+        _conn.executemany(
             "INSERT INTO event_accounts VALUES (?,?,?)",
             [(id, account_id, is_credit) for account_id, is_credit in accounts],
         )
 
     if len(tag_ids) > 0:
-        _conn.execute(
+        _conn.executemany(
             "INSERT INTO event_tags VALUES (?,?)",
             [(id, tag_id) for tag_id in tag_ids],
         )
