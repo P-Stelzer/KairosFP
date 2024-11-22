@@ -95,6 +95,10 @@ class EventEditor(QDialog):
         self.target_event.name = name
         self.target_event.memo = memo
         self.target_event.amount = serialized_amount
+        for tag_id in self.removed_tags:
+            self.target_event.tag_ids.remove(tag_id)
+        for tag_id in self.added_tags:
+            self.target_event.tag_ids.append(tag_id)
 
         if self.target_event.id < 0:
             new_event = db.insert_event(
