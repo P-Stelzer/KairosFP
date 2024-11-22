@@ -1,5 +1,8 @@
+import PySide6
+from PySide6.QtGui import QAction, QContextMenuEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QMenu,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -133,10 +136,31 @@ class EventCalendarElement(QPushButton):
         self.setText(self.data.name)
 
         self.clicked.connect(self.launch_editor)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
 
     def launch_editor(self):
         form = EventEditor(self.data)
         form.exec()
+
+    def delete_event(self):
+        db.delete_events(self.data)
+        LOADED_EVENTS.remove(self.data)
+        refresh_day(self.data.date)
+
+    def show_context_menu(self, position) -> None:
+        context_menu = QMenu(self)
+
+        edit_event = QAction("Edit Event", self)
+        delete_event = QAction("Delete Event", self)
+
+        edit_event.triggered.connect(self.launch_editor)
+        delete_event.triggered.connect(self.delete_event)
+
+        context_menu.addAction(edit_event)
+        context_menu.addAction(delete_event)
+
+        context_menu.exec(self.mapToGlobal(position))
 
 
 class Week(QHBoxLayout):

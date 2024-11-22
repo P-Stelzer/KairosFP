@@ -185,6 +185,8 @@ def add_accounts_to_event(
         ],
     )
 
+    _conn.commit()
+
 
 def remove_accounts_from_event(event_id: int, account_ids: list[int]) -> None:
     _conn.executemany(
@@ -192,11 +194,15 @@ def remove_accounts_from_event(event_id: int, account_ids: list[int]) -> None:
         [(event_id, account_id) for account_id in account_ids],
     )
 
+    _conn.commit()
+
 
 def delete_events(*events: Event) -> None:
     _conn.executemany(
         "DELETE FROM event WHERE id = ?", [(e.id,) for e in events]
     )
+
+    _conn.commit()
 
 
 def _get_accounts_for_event(event_id: int) -> list[tuple[int, bool]]:
@@ -400,9 +406,13 @@ def alter_tags(*tags: Tag) -> None:
         [(t.name, t.description) for t in tags],
     )
 
+    _conn.commit()
+
 
 def delete_tags(*tags: Tag) -> None:
     _conn.executemany("DELETE FROM tag WHERE id = ?", [(t.id,) for t in tags])
+
+    _conn.commit()
 
 
 def fetch_all_registered_tags() -> list[Tag]:
@@ -443,11 +453,15 @@ def alter_accounts(*accounts: Account) -> None:
         [(a.name, a.description) for a in accounts],
     )
 
+    _conn.commit()
+
 
 def delete_accounts(*accounts: Account) -> None:
     _conn.executemany(
         "DELETE FROM account WHERE id = ?", [(a.id,) for a in accounts]
     )
+
+    _conn.commit()
 
 
 def fetch_all_registered_accounts() -> list[Account]:
