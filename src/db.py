@@ -444,7 +444,11 @@ def register_account(
 
     _conn.commit()
 
-    return Account(id, name, description, min_balance, max_balance)
+    new_account = Account(id, name, description, min_balance, max_balance)
+
+    ACCOUNTS[id] = new_account
+
+    return new_account
 
 
 def alter_accounts(*accounts: Account) -> None:
@@ -462,6 +466,9 @@ def delete_accounts(*accounts: Account) -> None:
     )
 
     _conn.commit()
+
+    for account in accounts:
+        ACCOUNTS.pop(account.id)
 
 
 def fetch_all_registered_accounts() -> list[Account]:
@@ -499,5 +506,8 @@ def main() -> None:
 
 
 __initialize_schema__()
+ACCOUNTS: dict[int, Account] = dict()
+for account in fetch_all_registered_accounts():
+    ACCOUNTS[account.id] = account
 if __name__ == "__main__":
     main()
