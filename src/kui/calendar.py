@@ -1,5 +1,4 @@
-import PySide6
-from PySide6.QtGui import QAction, QContextMenuEvent
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMenu,
@@ -12,13 +11,14 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from datetime import date as Date, timedelta
 import db
-from db import Event, Tag
+from db import Event
 from kui.event_editor import EventEditor
 
 CURRENT_YEAR, CURRENT_WEEK, _ = Date.today().isocalendar()
 FIRST_DAY_OF_CURRENT_WEEK = Date.fromisocalendar(
     CURRENT_YEAR, CURRENT_WEEK, 1
 ) - timedelta(days=1)  # -1 days to make it sunday
+
 UNIT_WEEK = timedelta(weeks=1)
 UNIX_EPOCH = Date(1970, 1, 1)
 

@@ -1,13 +1,19 @@
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
+    QBoxLayout,
+    QButtonGroup,
+    QGridLayout,
     QHBoxLayout,
+    QLabel,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QLineEdit,
     QDialog,
+    QWidget,
 )
 import db
-from db import Event, Tag
+from db import Account, Event, Tag
 import kui.calendar as calendar
 
 
@@ -20,6 +26,8 @@ class EventEditor(QDialog):
         self.added_tags: list[int] = list()
         self.removed_tags: list[int] = list()
         self.tag_editor_form = TagSelector(self)
+
+        self.account_selector = AccountSelector(self)
 
         # container (box)
         self.box = QVBoxLayout(self)
@@ -66,6 +74,12 @@ class EventEditor(QDialog):
         self.box.addWidget(self.event_memo_text_box)
 
         # associated account (list of accounts)
+        self.box.addWidget(QLabel("Accounts"))
+        self.account_list = QHBoxLayout()
+        self.box.addLayout(self.account_list)
+        add_account_button = QPushButton("+")
+        add_account_button.clicked.connect(self.add_associated_account)
+        self.box.addWidget(add_account_button)
 
         # add account (button)
 
@@ -119,6 +133,9 @@ class EventEditor(QDialog):
 
         self.close()
 
+    def add_associated_account(self):
+        self.account_selector.open()
+
 
 class TagSelector(QDialog):
     def __init__(self, event_editor: EventEditor) -> None:
@@ -170,3 +187,97 @@ class TagSelectorButton(QPushButton):
                 self.tag_editor.event_editor.added_tags.append(self.tag.id)
             case (False, False):
                 self.tag_editor.event_editor.added_tags.remove(self.tag.id)
+
+
+class AccountSelector(QDialog):
+    def __init__(self, parent: EventEditor) -> None:
+        super().__init__()
+
+        layout = QVBoxLayout(self)
+        self.grid = QGridLayout()
+        layout.addLayout(self.grid)
+
+        self.account_buttons: list[AccountSelectorButton] = list()
+        for account in db.fetch_all_registered_accounts():
+            button = AccountSelectorButton(
+                self,
+                account,
+                any(t[0] == account.id for t in parent.target_event.accounts),
+            )
+            self.account_buttons.append(button)
+
+    def add_account(self, account: Account):
+        self.close()
+
+    def open(self):
+        self.rebuild()
+        self.exec()
+
+    def rebuild(self):
+        layout = self.grid
+        for button in self.account_buttons:
+            layout.removeWidget(button)
+            # if child.widget():
+            #     child.widget().deleteLater()
+
+        buttons = self.account_buttons
+        num_buttons = len(self.account_buttons)
+        num_columns = (num_buttons + 7) // 8
+        num_rows = (num_buttons // num_columns) + (
+            1 if num_buttons % num_columns else 0
+        )
+
+        button_id = 0
+        for col in range(num_columns):
+            for row in range(num_rows):
+                print(buttons[button_id].is_active)
+                if button_id < num_buttons and buttons[button_id].is_active:
+                    layout.addWidget(buttons[button_id], row, col)
+                    button_id += 1
+
+
+class AccountSelectorButton(QPushButton):
+    def __init__(
+        self, parent: AccountSelector, account: Account, is_member: bool
+    ) -> None:
+        super().__init__()
+
+        self.account_selector = parent
+        self.is_active = not is_member
+        self.account = account
+        self.setText(account.name)
+        self.clicked.connect(self.add_account)
+
+    def add_account(self):
+        print(self.account.name)
+        # self.is_active = False
+        self.hide()
+        self.account_selector.add_account(self.account)
+
+
+class AccountAssociation(QWidget):
+    def __init__(self, parent: EventEditor) -> None:
+        super().__init__(parent)
+
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel("Account Name"))
+        self.crdr_toggle_button = CrDrToggleButton(self)
+        layout.addWidget(self.crdr_toggle_button)
+        remove_button = QPushButton("-")
+        # remove_button.clicked.connect()
+        layout.addWidget(remove_button)
+
+
+class CrDrToggleButton(QPushButton):
+    def __init__(self, parent: AccountAssociation) -> None:
+        super().__init__(parent)
+
+        self.is_credit = True
+        self.update()
+        self.clicked.connect(self.update)
+
+    def update(self):
+        if self.is_credit:
+            self.setText("Cr")
+        else:
+            self.setText("Dr")
