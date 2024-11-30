@@ -1,3 +1,5 @@
+from abc import abstractproperty
+from collections.abc import AsyncIterator
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -13,6 +15,8 @@ from datetime import date as Date, timedelta
 import db
 from db import Event
 from kui.event_editor import EventEditor
+
+import threading
 
 CURRENT_YEAR, CURRENT_WEEK, _ = Date.today().isocalendar()
 FIRST_DAY_OF_CURRENT_WEEK = Date.fromisocalendar(
@@ -163,8 +167,12 @@ class EventCalendarElement(QPushButton):
 
 
 class Week(QHBoxLayout):
-    def __init__(self, first_day_of_week: Date) -> None:
+    def __init__(
+        self, calendar: "InfiniteScrollArea", first_day_of_week: Date
+    ) -> None:
         super().__init__()
+
+        self.calendar = calendar
 
         self.setSpacing(0)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -192,31 +200,43 @@ class InfiniteScrollArea(QScrollArea):
         self.min = FIRST_DAY_OF_CURRENT_WEEK
         self.max = self.min
 
+        self.expanding = False
+
         # Check scrollbar position on a timer
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.scrolled)
-        self.timer.start(50)
+        # self.timer = QTimer(self)
+        # self.timer.timeout.connect(self.scrolled)
+        # self.timer.start(50)
 
         # Check scrollbar position when it changes
-        # self.verticalScrollBar().valueChanged.connect(self.scrolled)
+        self.verticalScrollBar().valueChanged.connect(self.scrolled)
 
         # Correct scrollbar position after upward extension
-        self.slider_max = self.verticalScrollBar().maximum()
-        self.verticalScrollBar().rangeChanged.connect(self.correct_slider)
+        # self.slider_max = self.verticalScrollBar().maximum()
+        # self.verticalScrollBar().rangeChanged.connect(self.correct_slider)
 
         # Do not show a scrollbar
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         # Add initial content
-        self.extend_upwards(5)
         self.extend_downwards(10)
+        self.extend_upwards(5)
+        # self.thread().msleep(100)
+        self.show()
+        self.verticalScrollBar().setValue(400)
 
     def scrolled(self):
+        if self.expanding:
+            return
+        self.expanding = True
         value = self.verticalScrollBar().value()
         if value == self.verticalScrollBar().maximum():
             self.extend_downwards(5)
+            # self.thread().sleep(50)
         elif value == self.verticalScrollBar().minimum():
             self.extend_upwards(5)
+            # self.thread().msleep(20)
+            self.verticalScrollBar().setValue(500)
+        self.expanding = False
 
     def extend_downwards(self, n):
         after = date_to_serial(self.max) - 1
@@ -224,7 +244,7 @@ class InfiniteScrollArea(QScrollArea):
         new_events = db.fetch_events().after(after).before(before).exec()
         LOADED_EVENTS.extend(new_events)
         for _ in range(n):
-            self.area_layout.addLayout(Week(self.max))
+            self.area_layout.addLayout(Week(self, self.max))
             self.max += UNIT_WEEK
 
     def extend_upwards(self, n):
@@ -236,9 +256,11 @@ class InfiniteScrollArea(QScrollArea):
         LOADED_EVENTS = new_events
         for _ in range(n):
             self.min -= UNIT_WEEK
-            self.area_layout.insertLayout(0, Week(self.min))
+            self.area_layout.insertLayout(0, Week(self, self.min))
 
     def correct_slider(self, min, max):
+        # self.thread().msleep(50)
         if self.verticalScrollBar().value() == min:
-            self.verticalScrollBar().setValue(max - self.slider_max)
+            self.verticalScrollBar().setValue(1000)
+            print(min, max, "Correcting", max - self.slider_max)
         self.slider_max = max

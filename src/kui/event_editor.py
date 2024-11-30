@@ -81,6 +81,7 @@ class EventEditor(QDialog):
         # associated account (list of accounts)
         self.box.addWidget(QLabel("Accounts"))
         self.account_list = QVBoxLayout()
+        self.account_list.setSpacing(0)
         self.box.addLayout(self.account_list)
         for account_id, is_credit in self.target_event.accounts:
             self.account_list.addWidget(
