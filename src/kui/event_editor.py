@@ -120,10 +120,29 @@ class EventEditor(QDialog):
         self.target_event.name = name
         self.target_event.memo = memo
         self.target_event.amount = serialized_amount
+
         for tag_id in self.removed_tags:
             self.target_event.tag_ids.remove(tag_id)
         for tag_id in self.added_tags:
             self.target_event.tag_ids.append(tag_id)
+
+        altered_accounts: list[int] = list()
+        removed_accounts: list[int] = list()
+        added_accounts: list[tuple[int, bool]] = list()
+        for i, (account_id, is_credit) in enumerate(self.target_event.accounts):
+            match self.account_changes.get(account_id):
+                case None:
+                    continue
+                case 0:
+                    self.target_event.accounts[i] = (account_id, not is_credit)
+                    altered_accounts.append(account_id)
+                case -1 | -2:
+                    self.target_event.accounts.pop(i)
+                    removed_accounts.append(account_id)
+        for account_id, change in self.account_changes.items():
+            if change > 0:
+                self.target_event.accounts.append((account_id, change == 2))
+                added_accounts.append((account_id, change == 2))
 
         if self.target_event.id < 0:
             new_event = db.insert_event(
@@ -140,8 +159,16 @@ class EventEditor(QDialog):
             db.alter_events(self.target_event)
             db.remove_tags_from_event(self.target_event.id, self.removed_tags)
             db.add_tags_to_event(self.target_event.id, self.added_tags)
+            db.toggle_account_type_for_event(
+                self.target_event.id, altered_accounts
+            )
+            db.remove_accounts_from_event(
+                self.target_event.id, removed_accounts
+            )
+            db.add_accounts_to_event(self.target_event.id, added_accounts)
             calendar.refresh_day(self.target_event.date)
 
+        db.commit_changes()
         self.close()
 
     def add_account(self, account: Account) -> None:

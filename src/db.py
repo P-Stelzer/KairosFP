@@ -106,7 +106,7 @@ def __reset_schema__():
         """
         )
     )
-    _conn.commit()
+
     # __initialize_schema__()
 
 
@@ -142,8 +142,6 @@ def insert_event(
             [(id, tag_id) for tag_id in tag_ids],
         )
 
-    _conn.commit()
-
     return Event(id, date, amount, name, memo, accounts, tag_ids)
 
 
@@ -153,16 +151,12 @@ def alter_events(*events: Event) -> None:
         [(e.date, e.amount, e.name, e.memo, e.id) for e in events],
     )
 
-    _conn.commit()
-
 
 def add_tags_to_event(event_id: int, tag_ids: list[int]) -> None:
     _conn.executemany(
         "INSERT INTO event_tags VALUES (?,?)",
         [(event_id, tag_id) for tag_id in tag_ids],
     )
-
-    _conn.commit()
 
 
 def remove_tags_from_event(event_id: int, tag_ids: list[int]) -> None:
@@ -171,21 +165,26 @@ def remove_tags_from_event(event_id: int, tag_ids: list[int]) -> None:
         [(event_id, tag_id) for tag_id in tag_ids],
     )
 
-    _conn.commit()
-
 
 def add_accounts_to_event(
     event_id: int, accounts: list[tuple[int, bool]]
 ) -> None:
     _conn.executemany(
-        "INSERT INTO event_accounts VALUES (?,?)",
+        "INSERT INTO event_accounts VALUES (?,?,?)",
         [
             (event_id, account_id, is_credit)
             for account_id, is_credit in accounts
         ],
     )
 
-    _conn.commit()
+
+def toggle_account_type_for_event(
+    event_id: int, account_ids: list[int]
+) -> None:
+    _conn.executemany(
+        "UPDATE event_accounts SET is_credit = NOT is_credit WHERE event_id = ? AND account_id = ?",
+        [(event_id, account_id) for account_id in account_ids],
+    )
 
 
 def remove_accounts_from_event(event_id: int, account_ids: list[int]) -> None:
@@ -194,15 +193,11 @@ def remove_accounts_from_event(event_id: int, account_ids: list[int]) -> None:
         [(event_id, account_id) for account_id in account_ids],
     )
 
-    _conn.commit()
-
 
 def delete_events(*events: Event) -> None:
     _conn.executemany(
         "DELETE FROM event WHERE id = ?", [(e.id,) for e in events]
     )
-
-    _conn.commit()
 
 
 def _get_accounts_for_event(event_id: int) -> list[tuple[int, bool]]:
@@ -395,8 +390,6 @@ def register_tag(name: str, description: str) -> Tag:
     if id is None:
         raise RuntimeError("Could not obtain id for new tag")
 
-    _conn.commit()
-
     return Tag(id, name, description)
 
 
@@ -406,13 +399,9 @@ def alter_tags(*tags: Tag) -> None:
         [(t.name, t.description) for t in tags],
     )
 
-    _conn.commit()
-
 
 def delete_tags(*tags: Tag) -> None:
     _conn.executemany("DELETE FROM tag WHERE id = ?", [(t.id,) for t in tags])
-
-    _conn.commit()
 
 
 def fetch_all_registered_tags() -> list[Tag]:
@@ -442,8 +431,6 @@ def register_account(
     if id is None:
         raise RuntimeError("Could not obtain id for new account")
 
-    _conn.commit()
-
     new_account = Account(id, name, description, min_balance, max_balance)
 
     ACCOUNTS[id] = new_account
@@ -457,15 +444,11 @@ def alter_accounts(*accounts: Account) -> None:
         [(a.name, a.description) for a in accounts],
     )
 
-    _conn.commit()
-
 
 def delete_accounts(*accounts: Account) -> None:
     _conn.executemany(
         "DELETE FROM account WHERE id = ?", [(a.id,) for a in accounts]
     )
-
-    _conn.commit()
 
     for account in accounts:
         ACCOUNTS.pop(account.id)
@@ -480,6 +463,10 @@ def fetch_all_registered_accounts() -> list[Account]:
             Account(id, name, description, min_balance, max_balance)
         )
     return accounts
+
+
+def commit_changes() -> None:
+    _conn.commit()
 
 
 def main() -> None:
