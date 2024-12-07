@@ -10,7 +10,9 @@ from PySide6.QtWidgets import (
     QMenu,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
+    QWidget,
 )
 
 import db
@@ -101,6 +103,9 @@ class Day(QPushButton):
         color = "blue" if date == Date.today() else "black"
         self.setStyleSheet(f"border-radius : 0; border : 2px solid {color}")
         self.setMinimumSize(100, 100)
+        self.setSizePolicy(
+            QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        )
         self.date_label = QLabel(
             f"{self.date.year}/{self.date.month}/{self.date.day}"
         )
@@ -174,12 +179,40 @@ class Week(QHBoxLayout):
         self.calendar = calendar
 
         self.setSpacing(0)
+        self.setContentsMargins(0, 0, 0, 0)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         for i in range(7):
             day = first_day_of_week + timedelta(days=i)
             day_button = Day(day)
             self.addWidget(day_button)
+
+
+class Calendar(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        header = QHBoxLayout()
+        for s in ("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"):
+            label = QLabel(s)
+            label.setSizePolicy(
+                QSizePolicy(
+                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+                )
+            )
+            # label.setFixedWidth(80)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            header.addWidget(label)
+        layout.addLayout(header)
+
+        layout.addWidget(InfiniteScrollArea())
+
+        # self.setSizePolicy(
+        #     QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        # )
 
 
 class InfiniteScrollArea(QScrollArea):
@@ -191,8 +224,10 @@ class InfiniteScrollArea(QScrollArea):
         area_widget = QFrame(self)
         self.area_layout = QVBoxLayout()
         self.area_layout.setSpacing(0)
-        self.area_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.area_layout.setContentsMargins(0, 0, 0, 0)
+        # self.area_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         area_widget.setLayout(self.area_layout)
+        self.setMinimumWidth(702)
 
         self.setWidget(area_widget)
 
@@ -220,6 +255,7 @@ class InfiniteScrollArea(QScrollArea):
         self.extend_downwards(10)
         self.extend_upwards(5)
         # self.thread().msleep(100)
+        print("area_widget", area_widget.geometry().width())
         self.show()
         self.verticalScrollBar().setValue(400)
 

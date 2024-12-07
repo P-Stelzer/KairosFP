@@ -1,17 +1,23 @@
 import sys
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QWidget
 
 from kui.balance_sheet import BalanceSheet
-from kui.calendar import InfiniteScrollArea
+from kui.calendar import Calendar
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    calendar = InfiniteScrollArea()
-    calendar.show()
+    main_widget = QWidget()
+    layout = QHBoxLayout()
+    main_widget.setLayout(layout)
 
+    calendar = Calendar()
     balance_sheet = BalanceSheet()
-    balance_sheet.show()
+
+    layout.addWidget(balance_sheet)
+    layout.addWidget(calendar)
+
+    main_widget.show()
 
     app.exec()
