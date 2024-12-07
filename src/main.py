@@ -8,6 +8,8 @@ from kui.calendar import Calendar
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
+    app.setApplicationDisplayName("Kairos Financial Planner")
+
     main_widget = QWidget()
     layout = QHBoxLayout()
     main_widget.setLayout(layout)

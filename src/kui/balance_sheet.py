@@ -109,11 +109,11 @@ class AccountElement(QHBoxLayout):
     def show_context_menu(self, position) -> None:
         context_menu = QMenu(self.account_name)
 
-        edit_event = QAction("Edit Account", self)
+        edit_event = QAction("Edit Account", self.account_name)
         edit_event.triggered.connect(self.launch_editor)
         context_menu.addAction(edit_event)
 
-        delete_event = QAction("Delete Account", self)
+        delete_event = QAction("Delete Account", self.account_name)
         delete_event.triggered.connect(self.delete_account)
         context_menu.addAction(delete_event)
 

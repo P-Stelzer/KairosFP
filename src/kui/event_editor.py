@@ -1,10 +1,11 @@
-from PySide6.QtGui import QDoubleValidator
+from PySide6.QtGui import QAction, QDoubleValidator, Qt
 from PySide6.QtWidgets import (
     QDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
 import db
 import kui.calendar as calendar
 from db import Account, Event, Tag
+from kui.tag_editor import TagEditor
 
 
 class EventEditor(QDialog):
@@ -224,14 +226,26 @@ class TagSelector(QDialog):
 
         self.event_editor = event_editor
 
-        self.tags_layout = QVBoxLayout(self)
+        self.lay = QVBoxLayout()
+        self.setLayout(self.lay)
+
+        self.tags_matrix = QVBoxLayout()
+        self.lay.addLayout(self.tags_matrix)
 
         # clicking tag from list adds it to that specific event
         for tag in db.fetch_all_registered_tags():
             tag_button = TagSelectorButton(
                 self, tag, tag.id in self.event_editor.target_event.tag_ids
             )
-            self.tags_layout.addWidget(tag_button)
+            self.tags_matrix.addWidget(tag_button)
+
+        create_tag_button = QPushButton("+")
+        create_tag_button.clicked.connect(self.create_tag)
+        self.lay.addWidget(create_tag_button)
+
+    def create_tag(self) -> None:
+        form = TagEditor(Tag(-1, "", ""))
+        form.exec()
 
 
 class TagSelectorButton(QPushButton):
@@ -248,6 +262,9 @@ class TagSelectorButton(QPushButton):
         self.update_text()
 
         self.clicked.connect(self.toggle_tag)
+
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
 
     def update_text(self):
         if self.is_activated:
@@ -268,6 +285,27 @@ class TagSelectorButton(QPushButton):
                 self.tag_editor.event_editor.added_tags.append(self.tag.id)
             case (False, False):
                 self.tag_editor.event_editor.added_tags.remove(self.tag.id)
+
+    def show_context_menu(self, position) -> None:
+        context_menu = QMenu(self)
+
+        edit_event = QAction("Edit Tag", self)
+        edit_event.triggered.connect(self.launch_editor)
+        context_menu.addAction(edit_event)
+
+        delete_event = QAction("Delete Tag", self)
+        delete_event.triggered.connect(self.delete_tag)
+        context_menu.addAction(delete_event)
+
+        context_menu.exec(self.mapToGlobal(position))
+
+    def launch_editor(self) -> None:
+        form = TagEditor(self.tag)
+        form.exec()
+
+    def delete_tag(self) -> None:
+        db.delete_tags(self.tag)
+        db.commit_changes()
 
 
 class AccountSelector(QDialog):
