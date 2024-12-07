@@ -1,5 +1,3 @@
-from abc import abstractproperty
-from collections.abc import AsyncIterator
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -36,29 +34,28 @@ def serial_to_date(serial: int) -> Date:
 
 
 LOADED_DAYS: dict[int, "Day"] = dict()
-LOADED_EVENTS: list[Event] = list()
 
 
 def get_loaded_events(date: Date) -> list[Event]:
     serial = date_to_serial(date)
     low = 0
-    high = len(LOADED_EVENTS) - 1
+    high = len(db.LOADED_EVENTS) - 1
     mid = 0
     while low <= high:
         mid = low + (high - low) // 2
-        if LOADED_EVENTS[mid].date == serial:
+        if db.LOADED_EVENTS[mid].date == serial:
             break
-        elif LOADED_EVENTS[mid].date > serial:
+        elif db.LOADED_EVENTS[mid].date > serial:
             high = mid - 1
         else:
             low = mid + 1
 
-    while mid - 1 >= 0 and LOADED_EVENTS[mid - 1].date == serial:
+    while mid - 1 >= 0 and db.LOADED_EVENTS[mid - 1].date == serial:
         mid -= 1
 
     events: list[Event] = list()
-    while mid < len(LOADED_EVENTS) and LOADED_EVENTS[mid].date == serial:
-        events.append(LOADED_EVENTS[mid])
+    while mid < len(db.LOADED_EVENTS) and db.LOADED_EVENTS[mid].date == serial:
+        events.append(db.LOADED_EVENTS[mid])
         mid += 1
 
     return events
@@ -66,23 +63,23 @@ def get_loaded_events(date: Date) -> list[Event]:
 
 def insert_new_event(event: Event) -> None:
     low = 0
-    high = len(LOADED_EVENTS) - 1
+    high = len(db.LOADED_EVENTS) - 1
     mid = 0
     while low <= high:
         mid = low + (high - low) // 2
-        if LOADED_EVENTS[mid].date == event.date:
+        if db.LOADED_EVENTS[mid].date == event.date:
             while (
-                mid < len(LOADED_EVENTS)
-                and LOADED_EVENTS[mid].date == event.date
+                mid < len(db.LOADED_EVENTS)
+                and db.LOADED_EVENTS[mid].date == event.date
             ):
                 mid += 1
             low = mid
-        elif LOADED_EVENTS[mid].date > event.date:
+        elif db.LOADED_EVENTS[mid].date > event.date:
             high = mid - 1
         else:
             low = mid + 1
 
-    LOADED_EVENTS.insert(low, event)
+    db.LOADED_EVENTS.insert(low, event)
     refresh_day(event.date)
 
 
@@ -149,7 +146,7 @@ class EventCalendarElement(QPushButton):
 
     def delete_event(self):
         db.delete_events(self.data)
-        LOADED_EVENTS.remove(self.data)
+        db.LOADED_EVENTS.remove(self.data)
         refresh_day(self.data.date)
 
     def show_context_menu(self, position) -> None:
@@ -242,18 +239,18 @@ class InfiniteScrollArea(QScrollArea):
         after = date_to_serial(self.max) - 1
         before = after + 1 + (7 * n)
         new_events = db.fetch_events().after(after).before(before).exec()
-        LOADED_EVENTS.extend(new_events)
+        db.LOADED_EVENTS.extend(new_events)
         for _ in range(n):
             self.area_layout.addLayout(Week(self, self.max))
             self.max += UNIT_WEEK
 
     def extend_upwards(self, n):
-        global LOADED_EVENTS
+        global db.LOADED_EVENTS
         before = date_to_serial(self.min)
         after = before - 1 - (7 * n)
         new_events = db.fetch_events().before(before).after(after).exec()
-        new_events.extend(LOADED_EVENTS)
-        LOADED_EVENTS = new_events
+        new_events.extend(db.LOADED_EVENTS)
+        db.LOADED_EVENTS = new_events
         for _ in range(n):
             self.min -= UNIT_WEEK
             self.area_layout.insertLayout(0, Week(self, self.min))

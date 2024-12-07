@@ -118,9 +118,9 @@ class EventEditor(QDialog):
         cent_amount = int(split_amount[1]) if len(split_amount) > 1 else 0
         serialized_amount = (dollar_amount * 100) + cent_amount
 
-        self.target_event.name = name
-        self.target_event.memo = memo
-        self.target_event.amount = serialized_amount
+        self.target_event.update_name(name)
+        self.target_event.update_memo(memo)
+        self.target_event.update_amount(serialized_amount)
 
         for tag_id in self.removed_tags:
             self.target_event.tag_ids.remove(tag_id)

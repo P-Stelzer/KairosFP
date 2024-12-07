@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import sqlite3
 from typing import Any, Self
 
@@ -23,10 +24,33 @@ class Event:
         self.accounts = accounts
         self.tag_ids = tag_ids
 
+        for account_id, is_credit in accounts:
+            account = ACCOUNTS[account_id]
+            new_balance = account.balance + (amount * 1 if is_credit else -1)
+            account.update_balance(new_balance)
+
     def __str__(self) -> str:
         return "\n".join(
             [f"{str(f)}: {str(v)}" for f, v in self.__dict__.items()]
         )
+
+    def update_date(self, new_date: int) -> None:
+        self.date = new_date
+
+    def update_amount(self, new_amount: int) -> None:
+        for account_id, is_credit in self.accounts:
+            account = ACCOUNTS[account_id]
+            new_balance = account.balance + (
+                (new_amount - self.amount) * 1 if is_credit else -1
+            )
+            account.update_balance(new_balance)
+        self.amount = new_amount
+
+    def update_name(self, new_name: str) -> None:
+        self.name = new_name
+
+    def update_memo(self, new_memo: str) -> None:
+        self.memo = new_memo
 
 
 class Tag:
@@ -44,12 +68,19 @@ class Account:
         description: str,
         min_balance: int | None,
         max_balance: int | None,
+        balance: int = 0,
     ) -> None:
         self.id = id
         self.name = name
         self.description = description
         self.min_balance = min_balance
         self.max_balance = max_balance
+        self.balance = balance
+
+    def update_balance(self, new_balance: int):
+        old_balance = self.balance
+        self.balance = new_balance
+        signal_account_balance_changes(old_balance, new_balance)
 
 
 def __initialize_schema__():
@@ -493,8 +524,24 @@ def main() -> None:
 
 
 __initialize_schema__()
+LOADED_EVENTS: list[Event] = list()
+
 ACCOUNTS: dict[int, Account] = dict()
 for account in fetch_all_registered_accounts():
     ACCOUNTS[account.id] = account
+
+
+account_balance_changes_listeners: list[Callable] = list()
+
+
+def subscribe_account_balance_changes(callback: Callable) -> None:
+    account_balance_changes_listeners.append(callback)
+
+
+def signal_account_balance_changes(old_balance, new_balance) -> None:
+    for callback in account_balance_changes_listeners:
+        callback(old_balance, new_balance)
+
+
 if __name__ == "__main__":
     main()
