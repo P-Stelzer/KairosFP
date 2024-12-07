@@ -17,8 +17,8 @@ if __name__ == "__main__":
     calendar = Calendar()
     balance_sheet = BalanceSheet()
 
-    layout.addWidget(balance_sheet)
-    layout.addWidget(calendar)
+    layout.addWidget(balance_sheet, 2)
+    layout.addWidget(calendar, 7)
 
     main_widget.show()
 

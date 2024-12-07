@@ -74,9 +74,15 @@ class AccountElement(QHBoxLayout):
 
         self.account = account
         self.account_name = QPushButton(account.name)
-        self.account_balance = QLabel(str(account.balance))
+        self.spacer = QSpacerItem(
+            0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+        )
+        self.account_balance = QLabel(
+            f"$ {account.balance//100}.{account.balance%100}"
+        )
 
         self.addWidget(self.account_name)
+        self.addSpacerItem(self.spacer)
         self.addWidget(self.account_balance)
 
         self.account_name.clicked.connect(self.launch_editor)
