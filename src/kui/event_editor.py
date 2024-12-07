@@ -140,6 +140,7 @@ class EventEditor(QDialog):
                 case -1 | -2:
                     self.target_event.accounts.pop(i)
                     removed_accounts.append(account_id)
+                    
         for account_id, change in self.account_changes.items():
             if change > 0:
                 self.target_event.accounts.append((account_id, change == 2))

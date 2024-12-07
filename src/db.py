@@ -440,8 +440,8 @@ def register_account(
 
 def alter_accounts(*accounts: Account) -> None:
     _conn.executemany(
-        "UPDATE account SET name = ?, description = ?",
-        [(a.name, a.description) for a in accounts],
+        "UPDATE account SET name = ?, description = ?, min_balance = ?, max_balance = ?",
+        [(a.name, a.description, a.min_balance, a.max_balance) for a in accounts],
     )
 
 
