@@ -1,5 +1,5 @@
-from collections.abc import Callable
 import sqlite3
+from collections.abc import Callable
 from typing import Self
 
 _conn = sqlite3.connect("kfp.db")
@@ -13,7 +13,7 @@ class Event:
         amount: int,
         name: str,
         memo: str,
-        accounts: list[tuple[int, bool]],
+        accounts: dict[int, bool],
         tag_ids: list[int],
     ) -> None:
         self.id = id
@@ -33,8 +33,10 @@ class Event:
         self.date = new_date
 
     def update_amount(self, new_amount: int) -> None:
-        for account_id, is_credit in self.accounts:
-            account = ACCOUNTS[account_id]
+        for account_id, is_credit in self.accounts.items():
+            account = ACCOUNTS.get(account_id)
+            if account is None:
+                continue
             new_balance = account.balance + (
                 (new_amount - self.amount) * (1 if is_credit else -1)
             )
@@ -46,6 +48,42 @@ class Event:
 
     def update_memo(self, new_memo: str) -> None:
         self.memo = new_memo
+
+    def update_accounts(self, changes: dict[int, int]) -> None:
+        for account_id, change in changes.items():
+            account = ACCOUNTS.get(account_id)
+            if account is None:
+                raise RuntimeError(
+                    "Tried to reference an account that doesn't exist"
+                )
+            balance_change: int
+            match change:
+                case 1 | 2:
+                    if account_id in self.accounts:
+                        raise RuntimeError(
+                            "Tried to add an event-account relationship that already exists"
+                        )
+                    self.accounts[account_id] = change == 2
+                    balance_change = self.amount * (1 if change == 2 else -1)
+                case 0:
+                    is_credit = self.accounts.get(account_id)
+                    if is_credit is None:
+                        raise RuntimeError(
+                            "Tried to alter an event-account relationship that doesn't exist"
+                        )
+                    self.accounts[account_id] = not is_credit
+                    balance_change = 2 * self.amount * (-1 if is_credit else 1)
+                case -1 | -2:
+                    is_credit = self.accounts.pop(account_id, None)
+                    if is_credit is None:
+                        raise RuntimeError(
+                            "Tried to delete an event-account relationship that doesn't exist"
+                        )
+                    balance_change = self.amount * (-1 if is_credit else 1)
+                case _:
+                    raise RuntimeError("Invalid change id")
+
+            account.update_balance(account.balance + balance_change)
 
 
 class Tag:
@@ -79,8 +117,12 @@ class Account:
         self.name = new_name
         self.signal_name_changes(old_name, new_name)
 
-    def subscribe_name_changes(self, callback: Callable) -> None:
+    def subscribe_name_changes(self, callback: Callable) -> int:
         self.name_listeners.append(callback)
+        return len(self.name_listeners) - 1
+
+    def unsubscribe_name_changes(self, callback_index: int) -> None:
+        self.name_listeners.pop(callback_index)
 
     def signal_name_changes(self, old_name, new_name) -> None:
         for callback in self.name_listeners:
@@ -92,8 +134,12 @@ class Account:
         self.balance = new_balance
         self.signal_balance_changes(old_balance, new_balance)
 
-    def subscribe_balance_changes(self, callback: Callable) -> None:
+    def subscribe_balance_changes(self, callback: Callable) -> int:
         self.balance_listeners.append(callback)
+        return len(self.balance_listeners) - 1
+
+    def unsubscribe_balance_changes(self, callback_index: int) -> None:
+        self.balance_listeners.pop(callback_index)
 
     def signal_balance_changes(self, old_balance, new_balance) -> None:
         for callback in self.balance_listeners:
@@ -163,7 +209,7 @@ def insert_event(
     amount: int,
     name: str,
     memo: str,
-    accounts: list[tuple[int, bool]],
+    accounts: dict[int, bool],
     tag_ids: list[int],
 ) -> Event:
     cur = _conn.execute(
@@ -181,10 +227,13 @@ def insert_event(
     if len(accounts) > 0:
         _conn.executemany(
             "INSERT INTO event_accounts VALUES (?,?,?)",
-            [(id, account_id, is_credit) for account_id, is_credit in accounts],
+            [
+                (id, account_id, is_credit)
+                for account_id, is_credit in accounts.items()
+            ],
         )
 
-    for account_id, is_credit in accounts:
+    for account_id, is_credit in accounts.items():
         account = ACCOUNTS[account_id]
         new_balance = account.balance + (amount * (1 if is_credit else -1))
         account.update_balance(new_balance)
@@ -265,7 +314,7 @@ def delete_events(*events: Event) -> None:
         e.update_amount(0)
 
 
-def _get_accounts_for_event(event_id: int) -> list[tuple[int, bool]]:
+def _get_accounts_for_event(event_id: int) -> dict[int, bool]:
     cur = _conn.execute(
         "SELECT account_id, is_credit FROM event_accounts WHERE event_id = ?",
         (event_id,),
@@ -273,9 +322,9 @@ def _get_accounts_for_event(event_id: int) -> list[tuple[int, bool]]:
 
     result = cur.fetchall()
 
-    accounts: list[tuple[int, bool]] = list()
+    accounts: dict[int, bool] = dict()
     for account_id, is_credit in result:
-        accounts.append((account_id, is_credit))
+        accounts[account_id] = is_credit
 
     return accounts
 

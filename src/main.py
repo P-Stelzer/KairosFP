@@ -1,10 +1,10 @@
 import sys
+
 from PySide6.QtWidgets import QApplication
 
-from kui.calendar import InfiniteScrollArea
 from kui.balance_sheet import BalanceSheet
-# from kui.account_editor import AccountEditor
-# from db import Account
+from kui.calendar import InfiniteScrollArea
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

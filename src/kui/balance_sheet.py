@@ -57,15 +57,20 @@ class AccountElement(QWidget):
 
         self.account_name.clicked.connect(self.launch_editor)
 
-        account.subscribe_name_changes(
+        self.name_listener = account.subscribe_name_changes(
             lambda _, n: self.account_name.setText(n)
         )
-        account.subscribe_balance_changes(
+        self.balance_listener = account.subscribe_balance_changes(
             lambda _, n: self.account_balance.setText(str(n))
         )
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
+
+    def deleteLater(self) -> None:
+        self.account.unsubscribe_name_changes(self.name_listener)
+        self.account.unsubscribe_balance_changes(self.balance_listener)
+        return super().deleteLater()
 
     def launch_editor(self) -> None:
         form = AccountEditor(self.account)

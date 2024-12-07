@@ -1,11 +1,12 @@
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
+    QLineEdit,
     QPushButton,
     QVBoxLayout,
-    QLineEdit,
-    QDialog,
 )
+
 import db
 from db import Account
 

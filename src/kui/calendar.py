@@ -1,20 +1,21 @@
+from datetime import date as Date
+from datetime import timedelta
+
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QMenu,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
-    QFrame,
-    QLabel,
 )
-from PySide6.QtCore import Qt, QTimer
-from datetime import date as Date, timedelta
+
 import db
 from db import Event
 from kui.event_editor import EventEditor
-
-import threading
 
 CURRENT_YEAR, CURRENT_WEEK, _ = Date.today().isocalendar()
 FIRST_DAY_OF_CURRENT_WEEK = Date.fromisocalendar(
@@ -123,7 +124,7 @@ class Day(QPushButton):
 
     def create_new_event(self):
         form = EventEditor(
-            Event(-1, date_to_serial(self.date), -1, "", "", [], [])
+            Event(-1, date_to_serial(self.date), -1, "", "", dict(), list())
         )
         form.exec()
 

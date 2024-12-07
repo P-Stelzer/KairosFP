@@ -1,18 +1,19 @@
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
+    QDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
-    QLineEdit,
-    QDialog,
     QWidget,
 )
+
 import db
-from db import Account, Event, Tag
 import kui.calendar as calendar
+from db import Account, Event, Tag
 
 
 class EventEditor(QDialog):
@@ -83,9 +84,12 @@ class EventEditor(QDialog):
         self.account_list = QVBoxLayout()
         self.account_list.setSpacing(0)
         self.box.addLayout(self.account_list)
-        for account_id, is_credit in self.target_event.accounts:
+        for account_id, is_credit in self.target_event.accounts.items():
+            account = db.ACCOUNTS.get(account_id)
+            if account is None:
+                continue
             self.account_list.addWidget(
-                AccountEventItem(self, db.ACCOUNTS[account_id], is_credit)
+                AccountEventItem(self, account, is_credit)
             )
         add_account_button = QPushButton("+")
         add_account_button.clicked.connect(self.account_selector.exec)
@@ -127,24 +131,7 @@ class EventEditor(QDialog):
         for tag_id in self.added_tags:
             self.target_event.tag_ids.append(tag_id)
 
-        altered_accounts: list[int] = list()
-        removed_accounts: list[int] = list()
-        added_accounts: list[tuple[int, bool]] = list()
-        for i, (account_id, is_credit) in enumerate(self.target_event.accounts):
-            match self.account_changes.get(account_id):
-                case None:
-                    continue
-                case 0:
-                    self.target_event.accounts[i] = (account_id, not is_credit)
-                    altered_accounts.append(account_id)
-                case -1 | -2:
-                    self.target_event.accounts.pop(i)
-                    removed_accounts.append(account_id)
-
-        for account_id, change in self.account_changes.items():
-            if change > 0:
-                self.target_event.accounts.append((account_id, change == 2))
-                added_accounts.append((account_id, change == 2))
+        self.target_event.update_accounts(self.account_changes)
 
         if self.target_event.id < 0:
             new_event = db.insert_event(
@@ -159,8 +146,23 @@ class EventEditor(QDialog):
 
         else:
             db.alter_events(self.target_event)
+
             db.remove_tags_from_event(self.target_event.id, self.removed_tags)
             db.add_tags_to_event(self.target_event.id, self.added_tags)
+
+            altered_accounts: list[int] = list()
+            removed_accounts: list[int] = list()
+            added_accounts: list[tuple[int, bool]] = list()
+
+            for account_id, change in self.account_changes.items():
+                match change:
+                    case 1 | 2:
+                        added_accounts.append((account_id, change == 2))
+                    case 0:
+                        altered_accounts.append(account_id)
+                    case -1 | -2:
+                        removed_accounts.append(account_id)
+
             db.toggle_account_type_for_event(
                 self.target_event.id, altered_accounts
             )
@@ -286,12 +288,7 @@ class AccountSelector(QDialog):
         for account_id in sorted(db.ACCOUNTS.keys()):
             account = db.ACCOUNTS[account_id]
             button = AccountSelectorButton(
-                self,
-                account,
-                any(
-                    t[0] == account.id
-                    for t in event_editor.target_event.accounts
-                ),
+                self, account, account.id in event_editor.target_event.accounts
             )
             self.account_buttons.append(button)
 
