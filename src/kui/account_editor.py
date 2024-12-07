@@ -1,24 +1,20 @@
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
-    QGridLayout,
     QHBoxLayout,
-    QLabel,
     QPushButton,
-    QSizePolicy,
     QVBoxLayout,
     QLineEdit,
     QDialog,
-    QWidget,
 )
 import db
 from db import Account
-import kui.calendar as calendar
+
 
 class AccountEditor(QDialog):
-    def __init__(self, acc: Account) -> None:
+    def __init__(self, account: Account) -> None:
         super().__init__()
 
-        self.target_acc = acc
+        self.target_account = account
 
         # container (box)
         self.box = QVBoxLayout(self)
@@ -26,13 +22,13 @@ class AccountEditor(QDialog):
         # account name label (label)
         self.account_name_text_box = QLineEdit()
         self.account_name_text_box.setPlaceholderText("Account name...")
-        self.account_name_text_box.setText(acc.name)
+        self.account_name_text_box.setText(account.name)
         self.box.addWidget(self.account_name_text_box)
 
         # memo (text box)
         self.account_memo_text_box = QLineEdit()
         self.account_memo_text_box.setPlaceholderText("Enter description...")
-        self.account_memo_text_box.setText(acc.description)
+        self.account_memo_text_box.setText(account.description)
         self.box.addWidget(self.account_memo_text_box)
 
         # min and max balances (text box)
@@ -46,9 +42,9 @@ class AccountEditor(QDialog):
             QDoubleValidator.Notation.StandardNotation
         )
         self.min_balance.setValidator(self.amount_validator)
-        if acc.min_balance >= 0:
+        if account.min_balance >= 0:
             self.min_balance.setText(
-                f"{acc.min_balance//100}.{acc.min_balance%100}"
+                f"{account.min_balance//100}.{account.min_balance%100}"
             )
         self.balance_layer.addWidget(self.min_balance)
 
@@ -60,14 +56,14 @@ class AccountEditor(QDialog):
             QDoubleValidator.Notation.StandardNotation
         )
         self.max_balance.setValidator(self.amount_validator)
-        if acc.max_balance >= 0:
+        if account.max_balance >= 0:
             self.max_balance.setText(
-                f"{acc.max_balance//100}.{acc.max_balance%100}"
+                f"{account.max_balance//100}.{account.max_balance%100}"
             )
         self.balance_layer.addWidget(self.max_balance)
-        
+
         self.box.addLayout(self.balance_layer)
-        
+
         # confirm button (button)
         self.confirm_button = QPushButton("Confirm")
         self.confirm_button.clicked.connect(self.attempt_confirm)
@@ -81,7 +77,6 @@ class AccountEditor(QDialog):
         desc = self.account_memo_text_box.text()
         min = self.min_balance.text()
         max = self.max_balance.text()
-        
 
         # input validation
         if len(min) == 0:
@@ -101,22 +96,22 @@ class AccountEditor(QDialog):
         serialized_max = (dollar_max * 100) + cent_max
 
         # set values to the stored account
-        self.target_acc.name = name
-        self.target_acc.description = desc
-        self.target_acc.min_balance = serialized_min
-        self.target_acc.max_balance = serialized_max
+        self.target_account.update_name(name)
+        self.target_account.description = desc
+        self.target_account.min_balance = serialized_min
+        self.target_account.max_balance = serialized_max
 
-        if self.target_acc.id < 0:
+        if self.target_account.id < 0:
             new_acc = db.register_account(
-                self.target_acc.name,
-                self.target_acc.description,
-                self.target_acc.min_balance,
-                self.target_acc.max_balance,
+                self.target_account.name,
+                self.target_account.description,
+                self.target_account.min_balance,
+                self.target_account.max_balance,
             )
             # calendar.insert_new_event(new_acc) REVISIT THIS TO CONNECT THE ACCOUNT EDITOR TO THE CALENDAR
 
         else:
-            db.alter_accounts(self.target_acc)
+            db.alter_accounts(self.target_account)
 
         db.commit_changes()
         self.close()

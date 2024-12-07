@@ -129,25 +129,26 @@ class Day(QPushButton):
 
 
 class EventCalendarElement(QPushButton):
-    def __init__(self, data: Event) -> None:
+    def __init__(self, target_event: Event) -> None:
         super().__init__()
 
-        self.data = data
+        self.target_event = target_event
 
-        self.setText(self.data.name)
+        self.setText(self.target_event.name)
 
         self.clicked.connect(self.launch_editor)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
 
     def launch_editor(self):
-        form = EventEditor(self.data)
+        form = EventEditor(self.target_event)
         form.exec()
 
     def delete_event(self):
-        db.delete_events(self.data)
-        db.LOADED_EVENTS.remove(self.data)
-        refresh_day(self.data.date)
+        db.delete_events(self.target_event)
+        db.LOADED_EVENTS.remove(self.target_event)
+        db.commit_changes()
+        refresh_day(self.target_event.date)
 
     def show_context_menu(self, position) -> None:
         context_menu = QMenu(self)
@@ -245,7 +246,6 @@ class InfiniteScrollArea(QScrollArea):
             self.max += UNIT_WEEK
 
     def extend_upwards(self, n):
-        global db.LOADED_EVENTS
         before = date_to_serial(self.min)
         after = before - 1 - (7 * n)
         new_events = db.fetch_events().before(before).after(after).exec()

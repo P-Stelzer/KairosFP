@@ -140,7 +140,7 @@ class EventEditor(QDialog):
                 case -1 | -2:
                     self.target_event.accounts.pop(i)
                     removed_accounts.append(account_id)
-                    
+
         for account_id, change in self.account_changes.items():
             if change > 0:
                 self.target_event.accounts.append((account_id, change == 2))
@@ -283,7 +283,8 @@ class AccountSelector(QDialog):
         layout.addLayout(self.grid)
 
         self.account_buttons: list[AccountSelectorButton] = list()
-        for account in db.fetch_all_registered_accounts():
+        for account_id in sorted(db.ACCOUNTS.keys()):
+            account = db.ACCOUNTS[account_id]
             button = AccountSelectorButton(
                 self,
                 account,
@@ -306,7 +307,7 @@ class AccountSelector(QDialog):
         for button in self.account_buttons:
             self.grid.removeWidget(button)
 
-        num_columns = (len(self.account_buttons) + 7) // 8
+        num_columns = max(1, (len(self.account_buttons) + 7) // 8)
         num_rows = (len(self.account_buttons) // num_columns) + (
             1 if len(self.account_buttons) % num_columns else 0
         )

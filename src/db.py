@@ -1,6 +1,6 @@
 from collections.abc import Callable
 import sqlite3
-from typing import Any, Self
+from typing import Self
 
 _conn = sqlite3.connect("kfp.db")
 
@@ -24,11 +24,6 @@ class Event:
         self.accounts = accounts
         self.tag_ids = tag_ids
 
-        for account_id, is_credit in accounts:
-            account = ACCOUNTS[account_id]
-            new_balance = account.balance + (amount * 1 if is_credit else -1)
-            account.update_balance(new_balance)
-
     def __str__(self) -> str:
         return "\n".join(
             [f"{str(f)}: {str(v)}" for f, v in self.__dict__.items()]
@@ -41,7 +36,7 @@ class Event:
         for account_id, is_credit in self.accounts:
             account = ACCOUNTS[account_id]
             new_balance = account.balance + (
-                (new_amount - self.amount) * 1 if is_credit else -1
+                (new_amount - self.amount) * (1 if is_credit else -1)
             )
             account.update_balance(new_balance)
         self.amount = new_amount
@@ -76,11 +71,33 @@ class Account:
         self.min_balance = min_balance
         self.max_balance = max_balance
         self.balance = balance
+        self.name_listeners: list[Callable] = list()
+        self.balance_listeners: list[Callable] = list()
 
-    def update_balance(self, new_balance: int):
+    def update_name(self, new_name: str) -> None:
+        old_name = self.name
+        self.name = new_name
+        self.signal_name_changes(old_name, new_name)
+
+    def subscribe_name_changes(self, callback: Callable) -> None:
+        self.name_listeners.append(callback)
+
+    def signal_name_changes(self, old_name, new_name) -> None:
+        for callback in self.name_listeners:
+            callback(old_name, new_name)
+
+    def update_balance(self, new_balance: int) -> None:
+        print(new_balance)
         old_balance = self.balance
         self.balance = new_balance
-        signal_account_balance_changes(old_balance, new_balance)
+        self.signal_balance_changes(old_balance, new_balance)
+
+    def subscribe_balance_changes(self, callback: Callable) -> None:
+        self.balance_listeners.append(callback)
+
+    def signal_balance_changes(self, old_balance, new_balance) -> None:
+        for callback in self.balance_listeners:
+            callback(old_balance, new_balance)
 
 
 def __initialize_schema__():
@@ -167,6 +184,11 @@ def insert_event(
             [(id, account_id, is_credit) for account_id, is_credit in accounts],
         )
 
+    for account_id, is_credit in accounts:
+        account = ACCOUNTS[account_id]
+        new_balance = account.balance + (amount * (1 if is_credit else -1))
+        account.update_balance(new_balance)
+
     if len(tag_ids) > 0:
         _conn.executemany(
             "INSERT INTO event_tags VALUES (?,?)",
@@ -229,6 +251,18 @@ def delete_events(*events: Event) -> None:
     _conn.executemany(
         "DELETE FROM event WHERE id = ?", [(e.id,) for e in events]
     )
+
+    _conn.executemany(
+        "DELETE FROM event_tags WHERE event_id = ?", [(e.id,) for e in events]
+    )
+
+    _conn.executemany(
+        "DELETE FROM event_accounts WHERE event_id = ?",
+        [(e.id,) for e in events],
+    )
+
+    for e in events:
+        e.update_amount(0)
 
 
 def _get_accounts_for_event(event_id: int) -> list[tuple[int, bool]]:
@@ -426,13 +460,17 @@ def register_tag(name: str, description: str) -> Tag:
 
 def alter_tags(*tags: Tag) -> None:
     _conn.executemany(
-        "UPDATE tag SET name = ?, description = ?",
-        [(t.name, t.description) for t in tags],
+        "UPDATE tag SET name = ?, description = ? WHERE id = ?",
+        [(t.name, t.description, t.id) for t in tags],
     )
 
 
 def delete_tags(*tags: Tag) -> None:
     _conn.executemany("DELETE FROM tag WHERE id = ?", [(t.id,) for t in tags])
+
+    _conn.executemany(
+        "DElETE FROM event_tags WHERE tag_id = ?", [(t.id,) for t in tags]
+    )
 
 
 def fetch_all_registered_tags() -> list[Tag]:
@@ -465,14 +503,18 @@ def register_account(
     new_account = Account(id, name, description, min_balance, max_balance)
 
     ACCOUNTS[id] = new_account
+    signal_accounts_changes()
 
     return new_account
 
 
 def alter_accounts(*accounts: Account) -> None:
     _conn.executemany(
-        "UPDATE account SET name = ?, description = ?, min_balance = ?, max_balance = ?",
-        [(a.name, a.description, a.min_balance, a.max_balance) for a in accounts],
+        "UPDATE account SET name = ?, description = ?, min_balance = ?, max_balance = ? WHERE id = ?",
+        [
+            (a.name, a.description, a.min_balance, a.max_balance, a.id)
+            for a in accounts
+        ],
     )
 
 
@@ -481,8 +523,15 @@ def delete_accounts(*accounts: Account) -> None:
         "DELETE FROM account WHERE id = ?", [(a.id,) for a in accounts]
     )
 
+    _conn.executemany(
+        "DELETE FROM event_accounts WHERE account_id = ?",
+        [(a.id,) for a in accounts],
+    )
+
     for account in accounts:
         ACCOUNTS.pop(account.id)
+
+    signal_accounts_changes()
 
 
 def fetch_all_registered_accounts() -> list[Account]:
@@ -490,8 +539,21 @@ def fetch_all_registered_accounts() -> list[Account]:
     result = cur.fetchall()
     accounts: list[Account] = list()
     for id, name, description, min_balance, max_balance in result:
+        credit = cur.execute(
+            "SELECT SUM(amount) FROM (event NATURAL JOIN (SELECT event_id AS id, account_id FROM event_accounts WHERE is_credit > 0) NATURAL JOIN (SELECT id as account_id FROM account WHERE account_id = ?))",
+            (id,),
+        ).fetchone()[0]
+        debit = cur.execute(
+            "SELECT SUM(amount) FROM (event NATURAL JOIN (SELECT event_id AS id, account_id FROM event_accounts WHERE is_credit = 0) NATURAL JOIN (SELECT id as account_id FROM account WHERE account_id = ?))",
+            (id,),
+        ).fetchone()[0]
+        credit = 0 if credit is None else int(credit)
+        debit = 0 if debit is None else int(debit)
+        print(name, credit, debit)
         accounts.append(
-            Account(id, name, description, min_balance, max_balance)
+            Account(
+                id, name, description, min_balance, max_balance, credit - debit
+            )
         )
     return accounts
 
@@ -530,17 +592,16 @@ ACCOUNTS: dict[int, Account] = dict()
 for account in fetch_all_registered_accounts():
     ACCOUNTS[account.id] = account
 
-
-account_balance_changes_listeners: list[Callable] = list()
-
-
-def subscribe_account_balance_changes(callback: Callable) -> None:
-    account_balance_changes_listeners.append(callback)
+accounts_changes_listeners: list[Callable] = list()
 
 
-def signal_account_balance_changes(old_balance, new_balance) -> None:
-    for callback in account_balance_changes_listeners:
-        callback(old_balance, new_balance)
+def subscribe_accounts_changes(callback: Callable) -> None:
+    accounts_changes_listeners.append(callback)
+
+
+def signal_accounts_changes() -> None:
+    for callback in accounts_changes_listeners:
+        callback()
 
 
 if __name__ == "__main__":
