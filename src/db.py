@@ -129,7 +129,6 @@ class Account:
             callback(old_name, new_name)
 
     def update_balance(self, new_balance: int) -> None:
-        print(new_balance)
         old_balance = self.balance
         self.balance = new_balance
         self.signal_balance_changes(old_balance, new_balance)
@@ -598,7 +597,6 @@ def fetch_all_registered_accounts() -> list[Account]:
         ).fetchone()[0]
         credit = 0 if credit is None else int(credit)
         debit = 0 if debit is None else int(debit)
-        print(name, credit, debit)
         accounts.append(
             Account(
                 id, name, description, min_balance, max_balance, credit - debit

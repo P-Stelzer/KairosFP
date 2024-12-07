@@ -5,6 +5,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QPushButton,
+    QSizePolicy,
+    QSpacerItem,
     QVBoxLayout,
     QWidget,
 )
@@ -17,8 +19,35 @@ class BalanceSheet(QWidget):
     def __init__(self) -> None:
         super().__init__()
 
-        self.account_list = QVBoxLayout(self)
+        self.lay = QVBoxLayout()
+        self.setLayout(self.lay)
+
+        header = QLabel("Accounts")
+        header.setSizePolicy(
+            QSizePolicy(
+                QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
+            )
+        )
+        self.lay.addWidget(header)
+
+        self.account_list = QVBoxLayout()
         self.populate()
+        self.lay.addLayout(self.account_list)
+
+        self.lay.addItem(
+            QSpacerItem(
+                0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
+            )
+        )
+
+        new_account_button = QPushButton("+")
+        new_account_button.setSizePolicy(
+            QSizePolicy(
+                QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
+            )
+        )
+        new_account_button.clicked.connect(self.create_new)
+        self.lay.addWidget(new_account_button)
 
         db.subscribe_accounts_changes(self.refresh)
 
@@ -26,24 +55,20 @@ class BalanceSheet(QWidget):
         for account_id in sorted(db.ACCOUNTS.keys()):
             account = db.ACCOUNTS[account_id]
             element = AccountElement(account)
-            self.account_list.addWidget(element)
-
-        new_account_button = QPushButton("+")
-        new_account_button.clicked.connect(self.create_new)
-        self.account_list.addWidget(new_account_button)
+            self.account_list.addLayout(element)
 
     def create_new(self) -> None:
         form = AccountEditor(Account(-1, "", "", 0, 0))
         form.exec()
 
     def refresh(self) -> None:
-        for i in range(self.account_list.count()):
-            self.account_list.itemAt(i).widget().deleteLater()
+        for _ in range(self.account_list.count()):
+            self.account_list.takeAt(0).layout().deleteLater()
 
         self.populate()
 
 
-class AccountElement(QWidget):
+class AccountElement(QHBoxLayout):
     def __init__(self, account: Account) -> None:
         super().__init__()
 
@@ -51,9 +76,8 @@ class AccountElement(QWidget):
         self.account_name = QPushButton(account.name)
         self.account_balance = QLabel(str(account.balance))
 
-        layout = QHBoxLayout(self)
-        layout.addWidget(self.account_name)
-        layout.addWidget(self.account_balance)
+        self.addWidget(self.account_name)
+        self.addWidget(self.account_balance)
 
         self.account_name.clicked.connect(self.launch_editor)
 
@@ -64,10 +88,16 @@ class AccountElement(QWidget):
             lambda _, n: self.account_balance.setText(str(n))
         )
 
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
+        self.account_name.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.account_name.customContextMenuRequested.connect(
+            self.show_context_menu
+        )
 
     def deleteLater(self) -> None:
+        self.account_name.deleteLater()
+        self.account_balance.deleteLater()
         self.account.unsubscribe_name_changes(self.name_listener)
         self.account.unsubscribe_balance_changes(self.balance_listener)
         return super().deleteLater()
@@ -77,7 +107,7 @@ class AccountElement(QWidget):
         form.exec()
 
     def show_context_menu(self, position) -> None:
-        context_menu = QMenu(self)
+        context_menu = QMenu(self.account_name)
 
         edit_event = QAction("Edit Account", self)
         edit_event.triggered.connect(self.launch_editor)
@@ -87,7 +117,7 @@ class AccountElement(QWidget):
         delete_event.triggered.connect(self.delete_account)
         context_menu.addAction(delete_event)
 
-        context_menu.exec(self.mapToGlobal(position))
+        context_menu.exec(self.account_name.mapToGlobal(position))
 
     def delete_account(self) -> None:
         db.delete_accounts(self.account)

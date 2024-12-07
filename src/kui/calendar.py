@@ -255,7 +255,6 @@ class InfiniteScrollArea(QScrollArea):
         self.extend_downwards(10)
         self.extend_upwards(5)
         # self.thread().msleep(100)
-        print("area_widget", area_widget.geometry().width())
         self.show()
         self.verticalScrollBar().setValue(400)
 

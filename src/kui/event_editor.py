@@ -108,13 +108,11 @@ class EventEditor(QDialog):
         self.tag_editor_form.exec()
 
     def attempt_confirm(self):
-        for key, value in self.account_changes.items():
-            print(db.ACCOUNTS[key].name, value)
         name = self.event_name_text_box.text()
         amount = self.event_amount_text_box.text()
         memo = self.event_memo_text_box.text()
         if len(amount) == 0:
-            print("Invlaid input amount")
+            print("Invalid input amount")
             return
 
         split_amount = amount.split(".")
@@ -217,8 +215,6 @@ class EventEditor(QDialog):
                 self.account_changes.pop(account.id)
 
     def close(self) -> bool:
-        for key, value in self.account_changes.items():
-            print(db.ACCOUNTS[key].name, value)
         return super().close()
 
 
@@ -361,6 +357,7 @@ class AccountEventItem(QWidget):
         self.account = account
 
         layout = QHBoxLayout(self)
+        layout.setContentsMargins(20, 0, 0, 0)
         layout.addWidget(QLabel(account.name))
         self.crdr_button = CrDrToggleButton(self, is_credit)
         layout.addWidget(self.crdr_button)
