@@ -91,7 +91,7 @@ class AccountElement(QHBoxLayout):
             lambda _, n: self.account_name.setText(n)
         )
         self.balance_listener = account.subscribe_balance_changes(
-            lambda _, n: self.account_balance.setText(str(n))
+            lambda _, n: self.account_balance.setText(f"$ {n//100}.{n%100}")
         )
 
         self.account_name.setContextMenuPolicy(

@@ -37,6 +37,8 @@ class Event:
             account = ACCOUNTS.get(account_id)
             if account is None:
                 continue
+
+            print(account.balance, new_amount, self.amount)
             new_balance = account.balance + (
                 (new_amount - self.amount) * (1 if is_credit else -1)
             )
@@ -83,6 +85,7 @@ class Event:
                 case _:
                     raise RuntimeError("Invalid change id")
 
+            print(account.balance, balance_change)
             account.update_balance(account.balance + balance_change)
 
 
@@ -232,10 +235,10 @@ def insert_event(
             ],
         )
 
-    for account_id, is_credit in accounts.items():
-        account = ACCOUNTS[account_id]
-        new_balance = account.balance + (amount * (1 if is_credit else -1))
-        account.update_balance(new_balance)
+    # for account_id, is_credit in accounts.items():
+    #     account = ACCOUNTS[account_id]
+    #     new_balance = account.balance + (amount * (1 if is_credit else -1))
+    #     account.update_balance(new_balance)
 
     if len(tag_ids) > 0:
         _conn.executemany(
